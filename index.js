@@ -1,140 +1,207 @@
 (function () {
     const extensionName = "ExpandedLorebookAnchorsEM";
     const extensionVersion = "1.0.0";
-    constSt_settings = {{
-        "name": extensionName,
-        "version": extensionVersion,
-        "is_user_script": true
-    }};
+    const extensionAuthor = "kolache & pancat";
 
-    // Part 1: Modify the UI on settings load
-    function modifyUI() {
-        // Find the original Dialogue Examples container
-        const originalContainer = document.querySelector('#dialogue_examples_block');
-        if (!originalContainer) {
-            console.warn(`${extensionName}: Original dialogue examples block not found.`);
-            return;
+    // Data keys for saving/loading
+    const KEY_BEFORE_EXAMPLES = 'dialogueExamples_before'; // Corresponds to ↑EM
+    const KEY_AFTER_EXAMPLES = 'dialogueExamples_after';   // Corresponds to ↓EM / original dialogueExamples
+
+    let characterComment = ''; // To store the original character comment
+
+    // Function to log messages to the console for debugging
+    function log(message) {
+        console.log(`[${extensionName}] ${message}`);
+    }
+
+    // Main mutation function to alter the UI
+    function alterChatExampleUI() {
+        // Target the container for the "AI Response Configuration" section
+        const responseConfigContainer = document.querySelector('#response_config');
+        if (!responseConfigContainer) {
+            //log("Response config container not found. Retrying...");
+            return false;
         }
 
-        // Only run modification if it hasn't been done already
-        if (document.querySelector('#dialogue_examples_before_block')) {
-            return;
+        // Find the original 'Chat Examples' textarea and its container
+        const originalTextarea = document.querySelector('#dialogue_examples');
+        const originalFormGroup = originalTextarea?.closest('.form-group');
+
+        if (!originalTextarea || !originalFormGroup) {
+            //log("Original 'Chat Examples' elements not found. Retrying...");
+            return false;
         }
 
-        console.log(`${extensionName}: Modifying UI.`);
+        // Check if our extension has already run to prevent duplication
+        if (document.querySelector('#dialogue_examples_before')) {
+            //log("UI already altered. Skipping.");
+            return true;
+        }
+
+        log("Found target elements. Proceeding with UI modification.");
 
         // 1. Rename the existing "Chat Examples" to "Example Messages (after)"
-        const originalLabel = originalContainer.querySelector('label[for="dialogue_examples"]');
+        const originalLabel = originalFormGroup.querySelector('label[for="dialogue_examples"]');
         if (originalLabel) {
-            originalLabel.textContent = "Example Messages (after) (↓EM)";
+            originalLabel.textContent = 'Example Messages (after)';
+            log("Renamed original label.");
         }
-        const originalTextarea = originalContainer.querySelector('#dialogue_examples');
-        if (originalTextarea) {
-            // Update associated properties to align with the new preset structure
-            originalTextarea.id = "dialogue_examples_after";
-            originalTextarea.setAttribute('data-setting', 'dialogueExamples↓');
-        }
+        originalTextarea.setAttribute('placeholder', 'Example dialogue placed *after* lorebook entries using ↑EM and before entries using ↓EM.');
 
-        // Rename the container itself for clarity
-        originalContainer.id = 'dialogue_examples_after_block';
+        // 2. We need to handle the character comment. SillyTavern uses this to populate the text area.
+        // The original logic is tied to `characters[selected_character].data.description`. We'll need to separate them.
+        characterComment = characters[selected_character]?.data?.comment || '';
 
-        // 2. Create the new "Example Messages (before)" block
-        const beforeContainer = document.createElement('div');
-        beforeContainer.id = 'dialogue_examples_before_block';
-        beforeContainer.className = 'inline-drawer';
+        // 3. Create the new "Example Messages (before)" section
+        const newFormGroup = document.createElement('div');
+        newFormGroup.className = 'form-group';
 
-        const beforeLabel = document.createElement('label');
-        beforeLabel.setAttribute('for', 'dialogue_examples_before');
-        beforeLabel.textContent = "Example Messages (before) (↑EM)";
-        beforeLabel.style.marginTop = '10px'; // Add some spacing
+        const newLabel = document.createElement('label');
+        newLabel.setAttribute('for', 'dialogue_examples_before');
+        newLabel.textContent = 'Example Messages (before)';
 
-        const beforeTextarea = document.createElement('textarea');
-        beforeTextarea.id = 'dialogue_examples_before';
-        beforeTextarea.className = 'text_pole';
-        beforeTextarea.setAttribute('rows', '8');
-        beforeTextarea.setAttribute('data-setting', 'dialogueExamples↑'); // This is the key for preset saving
+        const newTextarea = document.createElement('textarea');
+        newTextarea.id = 'dialogue_examples_before';
+        newTextarea.className = 'text_pole';
+        newTextarea.setAttribute('rows', '8');
+        newTextarea.setAttribute('placeholder', 'Example dialogue placed *before* all other example-related lorebook entries (those using ↑EM and ↓EM).');
 
-        beforeContainer.appendChild(beforeLabel);
-        beforeContainer.appendChild(beforeTextarea);
+        newFormGroup.appendChild(newLabel);
+        newFormGroup.appendChild(newTextarea);
 
-        // 3. Insert the new block before the 'after' block
-        originalContainer.parentNode.insertBefore(beforeContainer, originalContainer);
+        // 4. Insert the new section before the original one
+        originalFormGroup.parentNode.insertBefore(newFormGroup, originalFormGroup);
+        log("Created and inserted 'Example Messages (before)' UI components.");
 
-        // Re-initialize event listeners for the new textarea
-        $(beforeTextarea).on('input', function () {
-            const preset = get_current_preset_name();
-            const value = $(this).val();
-            const setting = $(this).data('setting');
-            if (preset) {
-                set_preset_value(preset, setting, value, false);
+        // 5. Add event listener to the new textarea to save its content
+        newTextarea.addEventListener('change', () => {
+            if (selected_character !== -1) {
+                characters[selected_character].data[KEY_BEFORE_EXAMPLES] = newTextarea.value;
+                log(`Saved content for 'before' examples for character: ${characters[selected_character].data.name}`);
             }
         });
 
-        // Add a mutation observer to ensure our changes stick, especially after UI reloads/character changes
-        const parentOfContainers = originalContainer.parentNode;
-        const observer = new MutationObserver((mutationsList, observer) => {
-            for(const mutation of mutationsList) {
-                if (mutation.type === 'childList') {
-                    // If the original block is re-added, re-run our modification logic
-                    if (!document.querySelector('#dialogue_examples_before_block') && document.querySelector('#dialogue_examples_block')) {
-                         modifyUI();
-                         // We can disconnect after re-running to prevent infinite loops, or be more selective.
-                         // For now, this is simple and effective.
-                    }
+        // 6. Modify the original textarea's change event to save to the correct key (`comment`)
+        // The original saves to `.comment` not `.dialogue_examples` in character data, so we must respect that.
+        originalTextarea.addEventListener('change', () => {
+             if (selected_character !== -1) {
+                // The original/after examples are stored in the character comment field.
+                characters[selected_character].data.comment = originalTextarea.value;
+                log(`Saved content for 'after' examples to character comment for: ${characters[selected_character].data.name}`);
+            }
+        });
+
+
+        // Now, we need to load the correct data into the textareas.
+        loadDataIntoFields();
+
+        return true;
+    }
+
+    // Function to load data when a character is loaded or UI is first drawn
+    function loadDataIntoFields() {
+        if (selected_character === -1) return;
+
+        const charData = characters[selected_character].data;
+        log(`Loading data for character: ${charData.name}`);
+
+        const beforeTextarea = document.querySelector('#dialogue_examples_before');
+        const afterTextarea = document.querySelector('#dialogue_examples'); // This is the original textarea
+
+        if (beforeTextarea) {
+            beforeTextarea.value = charData[KEY_BEFORE_EXAMPLES] || '';
+            log("Loaded 'before' examples data.");
+        }
+
+        if (afterTextarea) {
+            // The "after" examples are stored in the character's comment section.
+            afterTextarea.value = charData.comment || '';
+            log("Loaded 'after' examples data from character comment.");
+        }
+    }
+
+
+    // Function to populate generation settings (like presets) from loaded data
+    function populateGenerationSettings(settings) {
+        log("Populating generation settings from preset.");
+        const beforeTextarea = document.querySelector('#dialogue_examples_before');
+
+        if(settings.dialogueExamples_before) {
+            log("Preset contains 'dialogueExamples_before'.");
+            if (beforeTextarea) {
+                beforeTextarea.value = settings.dialogueExamples_before;
+                beforeTextarea.dispatchEvent(new Event('change'));
+            } else {
+                // If UI isn't ready, store it temporarily
+                if (selected_character !== -1) {
+                    characters[selected_character].data[KEY_BEFORE_EXAMPLES] = settings.dialogueExamples_before;
                 }
             }
-        });
-        observer.observe(parentOfContainers, { childList: true, subtree: true });
+        }
+        // The original 'dialogueExamples' or 'comment' in a preset will be handled by SillyTavern's core logic for the 'after' field.
     }
 
-    function addPresetIntegration() {
-        if (typeof get_preset_value !== 'function' || typeof set_preset_value !== 'function') {
-            console.warn(`${extensionName}: Preset functions not available.`);
-            return;
+
+    // Function to update generation settings before saving (to a preset)
+    function updateGenerationSettings(settings) {
+        log("Updating generation settings for saving.");
+        const beforeTextarea = document.querySelector('#dialogue_examples_before');
+        if (beforeTextarea) {
+            settings.dialogueExamples_before = beforeTextarea.value;
         }
 
-        // Override the function that populates textareas to include our new fields
-        const originalPopulate = window.populate_preset_textareas;
-        window.populate_preset_textareas = function(preset) {
-            // Call the original function first
-            originalPopulate.apply(this, arguments);
-
-            // Now, handle our custom fields
-            const beforeValue = get_preset_value(preset, "dialogueExamples↑", "");
-            $('#dialogue_examples_before').val(beforeValue);
-
-            // The original function handles the old 'dialogueExamples'. We need to make sure
-            // presets using the new format 'dialogueExamples↓' also work.
-            const afterValue = get_preset_value(preset, "dialogueExamples↓", null);
-            if (afterValue !== null) {
-                // If the preset has the new key, use it.
-                 $('#dialogue_examples_after').val(afterValue);
-            } else {
-                 // Fallback for older presets: if 'dialogueExamples↓' doesn't exist,
-                 // the original function will have already populated it from 'dialogueExamples'.
-            }
-        };
-
-        if (Array.isArray(window.preset_settings_fields)) {
-            if (!window.preset_settings_fields.includes("dialogueExamples↑")) {
-                window.preset_settings_fields.push("dialogueExamples↑");
-            }
-            if (!window.preset_settings_fields.includes("dialogueExamples↓")) {
-                window.preset_settings_fields.push("dialogueExamples↓");
-            }
-        }
+        // We don't need to add `dialogueExamples` or `comment` here because SillyTavern's core save logic already handles it.
+        return settings;
     }
 
-    // Part 3: Execute the script
-    $(document).ready(function () {
-        // Use a small delay to ensure the UI is fully loaded
-        setTimeout(function() {
-            modifyUI();
-            addPresetIntegration();
+    // Overriding the function that formats the context
+    // This is the core logic that makes the ↑EM anchor work correctly.
+    const originalFormatContent = window.formatContent;
+    window.formatContent = function(context, main_api, is_instruct) {
+        if (selected_character !== -1) {
+            const charData = characters[selected_character].data;
+            const beforeExamples = charData[KEY_BEFORE_EXAMPLES] || '';
 
-            $(document).on('settings_changed', function() {
-                modifyUI();
-            });
-        }, 500);
+            if (beforeExamples.trim() !== '') {
+                log("Injecting 'before' examples into the context.");
+                const beforeExamplesBlock = `\n${beforeExamples.trim()}\n`;
+                // We find the ↑EM marker and prepend our text to it.
+                // This ensures anything in the lorebook set to ↑EM still appears after this block.
+                context = context.replace(new RegExp(lorebook_entries_placement_regex.em_0, "g"), `${beforeExamplesBlock}${lorebook_entries_placement_string.em_0}`);
+            }
+        }
+        // Call the original function to handle the rest of the formatting, including ↓EM.
+        return originalFormatContent(context, main_api, is_instruct);
+    };
+
+    // Use a MutationObserver to watch for when the relevant UI elements are added to the DOM.
+    // This is more robust than a simple `setInterval`.
+    const observer = new MutationObserver((mutationsList, observer) => {
+        for (const mutation of mutationsList) {
+            if (mutation.type === 'childList') {
+                if (alterChatExampleUI()) {
+                    observer.disconnect(); // Stop observing once we've successfully modified the UI.
+                    log("UI modification complete. Observer disconnected.");
+                }
+            }
+        }
     });
+
+    // Start observing the main application container for changes.
+    observer.observe(document.getElementById('app'), { childList: true, subtree: true });
+
+    // We also need to re-apply data loading when the character changes.
+    $(document).on('characterSelected', loadDataIntoFields);
+
+    // Hook into SillyTavern's preset loading/saving mechanisms.
+    // These events are custom to SillyTavern.
+    $(document).on('generationSettingsApplied', (event, settings) => {
+        populateGenerationSettings(settings);
+    });
+
+    $(document).on('generationSettingsUpdated', (event, settings) => {
+        updateGenerationSettings(settings);
+    });
+
+    log(`Extension ${extensionName} v${extensionVersion} by ${extensionAuthor} loaded.`);
 })();
