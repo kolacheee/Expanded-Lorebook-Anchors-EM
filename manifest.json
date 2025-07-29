@@ -1,0 +1,8 @@
+{
+  "display_name": "Expanded Lorebook Anchors",
+  "author": "pancatfan",
+  "version": "1.0.0",
+  "description": "Adds a 'before' anchor for Example Messages in the Lorebook and renames the existing anchor to 'after'.",
+  "js": "index.js",
+  "css": "style.css"
+}
