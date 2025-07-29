@@ -1,105 +1,140 @@
-/*
-    Dual Example Messages Extension
-    by pancakecat & Alyssa
-*/
 (function () {
-    const extensionName = "dual-example-messages";
-    const separator = "<||>"; // A unique separator not likely to be in actual examples
+    const extensionName = "ExpandedLorebookAnchorsEM";
+    const extensionVersion = "1.0.0";
+    constSt_settings = {{
+        "name": extensionName,
+        "version": extensionVersion,
+        "is_user_script": true
+    }};
 
-    // This function will run when the extension is loaded
-    function onExtensionLoaded() {
-        // Find the container for the original example messages
-        const originalExampleContainer = document.getElementById('chareditor-example-dialogue-block');
-        if (!originalExampleContainer) {
-            console.warn(`${extensionName}: Could not find original example dialogue container.`);
+    // Part 1: Modify the UI on settings load
+    function modifyUI() {
+        // Find the original Dialogue Examples container
+        const originalContainer = document.querySelector('#dialogue_examples_block');
+        if (!originalContainer) {
+            console.warn(`${extensionName}: Original dialogue examples block not found.`);
             return;
         }
 
-        const originalTextarea = document.getElementById('chareditor-example-dialogue');
-        const originalLabel = document.querySelector('label[for="chareditor-example-dialogue"]');
-
-        if (!originalTextarea || !originalLabel) {
-            console.warn(`${extensionName}: Could not find original example dialogue textarea or label.`);
+        // Only run modification if it hasn't been done already
+        if (document.querySelector('#dialogue_examples_before_block')) {
             return;
         }
 
-        // 1. CREATE THE 'BEFORE' TEXTAREA AND LABEL
+        console.log(`${extensionName}: Modifying UI.`);
+
+        // 1. Rename the existing "Chat Examples" to "Example Messages (after)"
+        const originalLabel = originalContainer.querySelector('label[for="dialogue_examples"]');
+        if (originalLabel) {
+            originalLabel.textContent = "Example Messages (after) (↓EM)";
+        }
+        const originalTextarea = originalContainer.querySelector('#dialogue_examples');
+        if (originalTextarea) {
+            // Update associated properties to align with the new preset structure
+            originalTextarea.id = "dialogue_examples_after";
+            originalTextarea.setAttribute('data-setting', 'dialogueExamples↓');
+        }
+
+        // Rename the container itself for clarity
+        originalContainer.id = 'dialogue_examples_after_block';
+
+        // 2. Create the new "Example Messages (before)" block
         const beforeContainer = document.createElement('div');
-        beforeContainer.id = 'dual-example-before-container';
-        beforeContainer.classList.add('chareditor_input_block');
+        beforeContainer.id = 'dialogue_examples_before_block';
+        beforeContainer.className = 'inline-drawer';
 
         const beforeLabel = document.createElement('label');
-        beforeLabel.htmlFor = 'chareditor-example-dialogue-before';
-        beforeLabel.textContent = 'Example Messages (before)';
-        beforeLabel.title = "Example messages to be placed BEFORE the main prompt. Corresponds to the ↑EM Lorebook position.";
+        beforeLabel.setAttribute('for', 'dialogue_examples_before');
+        beforeLabel.textContent = "Example Messages (before) (↑EM)";
+        beforeLabel.style.marginTop = '10px'; // Add some spacing
 
         const beforeTextarea = document.createElement('textarea');
-        beforeTextarea.id = 'chareditor-example-dialogue-before';
-        beforeTextarea.classList.add('text_pole');
-        beforeTextarea.rows = 8;
-        beforeTextarea.placeholder = 'Example dialogue placed with ↑EM in the Lorebook.';
+        beforeTextarea.id = 'dialogue_examples_before';
+        beforeTextarea.className = 'text_pole';
+        beforeTextarea.setAttribute('rows', '8');
+        beforeTextarea.setAttribute('data-setting', 'dialogueExamples↑'); // This is the key for preset saving
 
         beforeContainer.appendChild(beforeLabel);
         beforeContainer.appendChild(beforeTextarea);
 
-        // 2. MODIFY THE ORIGINAL 'AFTER' TEXTAREA AND LABEL
-        originalLabel.textContent = 'Example Messages (after)';
-        originalLabel.title = "Example messages to be placed AFTER the main prompt. Corresponds to the ↓EM Lorebook position.";
-        originalTextarea.placeholder = "Example dialogue placed with ↓EM in the Lorebook.";
+        // 3. Insert the new block before the 'after' block
+        originalContainer.parentNode.insertBefore(beforeContainer, originalContainer);
 
-        // 3. INSERT THE NEW 'BEFORE' CONTAINER INTO THE DOM
-        originalExampleContainer.parentNode.insertBefore(beforeContainer, originalExampleContainer);
-
-        console.log(`${extensionName}: UI modifications complete.`);
-    }
-
-    // This function runs when a character is loaded into the editor
-    function onCharacterLoad(character) {
-        const fullExampleText = character.data_mes_example || '';
-        const beforeTextarea = document.getElementById('chareditor-example-dialogue-before');
-        const afterTextarea = document.getElementById('chareditor-example-dialogue');
-
-        if (!beforeTextarea || !afterTextarea) return;
-
-        if (fullExampleText.includes(separator)) {
-            // If our separator exists, split the content into the two textareas
-            const parts = fullExampleText.split(separator);
-            beforeTextarea.value = parts[0] || '';
-            afterTextarea.value = parts[1] || '';
-        } else {
-            // For backwards compatibility, put everything in the 'after' box
-            beforeTextarea.value = '';
-            afterTextarea.value = fullExampleText;
-        }
-    }
-
-    // This function runs right before a character is saved
-    function onBeforeCharacterSave() {
-        const beforeTextarea = document.getElementById('chareditor-example-dialogue-before');
-        const afterTextarea = document.getElementById('chareditor-example-dialogue');
-
-        if (!beforeTextarea || !afterTextarea || !window.character) return;
-
-        const beforeValue = beforeTextarea.value.trim();
-        const afterValue = afterTextarea.value.trim();
-
-        // Combine the two fields with our separator and save to the character object
-        // This makes the change "stick" to the character's data
-        window.character.data_mes_example = `${beforeValue}${separator}${afterValue}`;
-    }
-
-    // Register the functions with SillyTavern's event system
-    $(document).ready(function() {
-        onExtensionLoaded();
-
-        // Listen for the event that fires when a character is loaded in the editor
-        jQuery(document).on('charactercharacterload', function () {
-            if (window.character) {
-                onCharacterLoad(window.character);
+        // Re-initialize event listeners for the new textarea
+        $(beforeTextarea).on('input', function () {
+            const preset = get_current_preset_name();
+            const value = $(this).val();
+            const setting = $(this).data('setting');
+            if (preset) {
+                set_preset_value(preset, setting, value, false);
             }
         });
 
-        // Add a listener to save our data before the character is saved
-        document.getElementById('chareditor-form').addEventListener('submit', onBeforeCharacterSave);
+        // Add a mutation observer to ensure our changes stick, especially after UI reloads/character changes
+        const parentOfContainers = originalContainer.parentNode;
+        const observer = new MutationObserver((mutationsList, observer) => {
+            for(const mutation of mutationsList) {
+                if (mutation.type === 'childList') {
+                    // If the original block is re-added, re-run our modification logic
+                    if (!document.querySelector('#dialogue_examples_before_block') && document.querySelector('#dialogue_examples_block')) {
+                         modifyUI();
+                         // We can disconnect after re-running to prevent infinite loops, or be more selective.
+                         // For now, this is simple and effective.
+                    }
+                }
+            }
+        });
+        observer.observe(parentOfContainers, { childList: true, subtree: true });
+    }
+
+    function addPresetIntegration() {
+        if (typeof get_preset_value !== 'function' || typeof set_preset_value !== 'function') {
+            console.warn(`${extensionName}: Preset functions not available.`);
+            return;
+        }
+
+        // Override the function that populates textareas to include our new fields
+        const originalPopulate = window.populate_preset_textareas;
+        window.populate_preset_textareas = function(preset) {
+            // Call the original function first
+            originalPopulate.apply(this, arguments);
+
+            // Now, handle our custom fields
+            const beforeValue = get_preset_value(preset, "dialogueExamples↑", "");
+            $('#dialogue_examples_before').val(beforeValue);
+
+            // The original function handles the old 'dialogueExamples'. We need to make sure
+            // presets using the new format 'dialogueExamples↓' also work.
+            const afterValue = get_preset_value(preset, "dialogueExamples↓", null);
+            if (afterValue !== null) {
+                // If the preset has the new key, use it.
+                 $('#dialogue_examples_after').val(afterValue);
+            } else {
+                 // Fallback for older presets: if 'dialogueExamples↓' doesn't exist,
+                 // the original function will have already populated it from 'dialogueExamples'.
+            }
+        };
+
+        if (Array.isArray(window.preset_settings_fields)) {
+            if (!window.preset_settings_fields.includes("dialogueExamples↑")) {
+                window.preset_settings_fields.push("dialogueExamples↑");
+            }
+            if (!window.preset_settings_fields.includes("dialogueExamples↓")) {
+                window.preset_settings_fields.push("dialogueExamples↓");
+            }
+        }
+    }
+
+    // Part 3: Execute the script
+    $(document).ready(function () {
+        // Use a small delay to ensure the UI is fully loaded
+        setTimeout(function() {
+            modifyUI();
+            addPresetIntegration();
+
+            $(document).on('settings_changed', function() {
+                modifyUI();
+            });
+        }, 500);
     });
 })();
