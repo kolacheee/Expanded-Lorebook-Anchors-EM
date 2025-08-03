@@ -44,6 +44,18 @@
 
             // Listen for World Info events if eventSource is available
             if (typeof eventSource !== 'undefined' && typeof event_types !== 'undefined') {
+                // Listen for world changes
+                const worldSelect = document.querySelector('#world_editor_select');
+                if (worldSelect) {
+                    worldSelect.addEventListener('change', () => {
+                        console.log('[World Info Folders] World changed, reloading folder data');
+                        setTimeout(() => {
+                            loadFromWorldInfo();
+                            renderFolders();
+                        }, 100);
+                    });
+                }
+            }
                 if (event_types.WORLDINFO_ENTRIES_LOADED) {
                     eventSource.on(event_types.WORLDINFO_ENTRIES_LOADED, onWorldInfoLoaded);
                 }
@@ -74,40 +86,34 @@
             const currentWorld = getCurrentWorldName();
             if (!currentWorld) return;
 
-            // Get the current world info data
-            const worldSelect = document.querySelector('#world_editor_select');
-            const selectedIndex = worldSelect.selectedIndex;
+            // Instead of accessing world_info directly, let's store folder data
+            // in a hidden world entry that acts as our metadata store
+            saveFolderMetadata();
 
-            if (selectedIndex <= 0) return;
-
-            // SillyTavern stores world info in world_info object
-            if (typeof world_info !== 'undefined' && world_info.globalSelect) {
-                const worldData = world_info.globalSelect[selectedIndex - 1];
-
-                if (worldData && worldData.entries) {
-                    // Add our folder data to the world info structure
-                    if (!worldData.folders) {
-                        worldData.folders = {};
-                    }
-                    if (!worldData.entryFolders) {
-                        worldData.entryFolders = {};
-                    }
-
-                    worldData.folders = settings.folders[currentWorld] || {};
-                    worldData.entryFolders = settings.entryFolders[currentWorld] || {};
-
-                    // Trigger ST's save mechanism
-                    if (typeof saveWorldInfo === 'function') {
-                        saveWorldInfo(selectedIndex - 1, false);
-                    } else if (typeof world_info.saveWorldInfo === 'function') {
-                        world_info.saveWorldInfo(selectedIndex - 1, false);
-                    }
-
-                    console.log('[World Info Folders] Saved folder data to world info file');
-                }
-            }
         } catch (error) {
             console.error('[World Info Folders] Error saving to world info:', error);
+        }
+    }
+
+    function saveFolderMetadata() {
+        try {
+            const currentWorld = getCurrentWorldName();
+            if (!currentWorld) return;
+
+            // Create or update a hidden metadata entry
+            const metadataKey = `__FOLDER_METADATA_${currentWorld}__`;
+            const folderData = {
+                folders: settings.folders[currentWorld] || {},
+                entryFolders: settings.entryFolders[currentWorld] || {},
+                timestamp: Date.now()
+            };
+
+            // Store in localStorage with world-specific key
+            localStorage.setItem(metadataKey, JSON.stringify(folderData));
+
+            console.log('[World Info Folders] Saved folder metadata to localStorage');
+        } catch (error) {
+            console.error('[World Info Folders] Error saving folder metadata:', error);
         }
     }
 
@@ -116,31 +122,40 @@
             const currentWorld = getCurrentWorldName();
             if (!currentWorld) return;
 
-            const worldSelect = document.querySelector('#world_editor_select');
-            const selectedIndex = worldSelect.selectedIndex;
+            loadFolderMetadata();
 
-            if (selectedIndex <= 0) return;
-
-            if (typeof world_info !== 'undefined' && world_info.globalSelect) {
-                const worldData = world_info.globalSelect[selectedIndex - 1];
-
-                if (worldData && worldData.folders) {
-                    // Load folder data from world info
-                    if (!settings.folders[currentWorld]) {
-                        settings.folders[currentWorld] = {};
-                    }
-                    if (!settings.entryFolders[currentWorld]) {
-                        settings.entryFolders[currentWorld] = {};
-                    }
-
-                    settings.folders[currentWorld] = worldData.folders || {};
-                    settings.entryFolders[currentWorld] = worldData.entryFolders || {};
-
-                    console.log('[World Info Folders] Loaded folder data from world info file');
-                }
-            }
         } catch (error) {
             console.error('[World Info Folders] Error loading from world info:', error);
+        }
+    }
+
+    function loadFolderMetadata() {
+        try {
+            const currentWorld = getCurrentWorldName();
+            if (!currentWorld) return;
+
+            const metadataKey = `__FOLDER_METADATA_${currentWorld}__`;
+            const savedData = localStorage.getItem(metadataKey);
+
+            if (savedData) {
+                const folderData = JSON.parse(savedData);
+
+                // Initialize if needed
+                if (!settings.folders[currentWorld]) {
+                    settings.folders[currentWorld] = {};
+                }
+                if (!settings.entryFolders[currentWorld]) {
+                    settings.entryFolders[currentWorld] = {};
+                }
+
+                // Load the data
+                settings.folders[currentWorld] = folderData.folders || {};
+                settings.entryFolders[currentWorld] = folderData.entryFolders || {};
+
+                console.log('[World Info Folders] Loaded folder metadata from localStorage');
+            }
+        } catch (error) {
+            console.error('[World Info Folders] Error loading folder metadata:', error);
         }
     }
 
