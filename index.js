@@ -205,6 +205,11 @@
             // Get all existing entry elements
             const existingEntries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
 
+            // Make sure all entries are draggable
+            existingEntries.forEach(entry => {
+                entry.draggable = true;
+            });
+
             // Create folder containers
             const folders = settings.folders[currentWorld];
             Object.values(folders).forEach(folder => {
@@ -214,6 +219,7 @@
             // Move entries to their assigned folders
             existingEntries.forEach(entry => {
                 const entryId = getEntryId(entry);
+                console.log('[World Info Folders] Entry ID:', entryId, 'for element:', entry);
                 const folderId = getFolderForEntry(currentWorld, entryId);
 
                 if (folderId && folders[folderId]) {
@@ -411,6 +417,9 @@
             // Handle entry drag start
             entriesContainer.addEventListener('dragstart', (e) => {
                 try {
+                    // Prevent conflicts with ST's native drag system
+                    e.stopPropagation();
+
                     const target = e.target;
                     if (target && (target.classList.contains('world_entry') || target.closest('.world_entry'))) {
                         const entry = target.closest('.world_entry');
@@ -460,27 +469,69 @@
                     console.error('[World Info Folders] Error in drop handler:', error);
                 }
             });
+
+            entriesContainer.addEventListener('dragenter', (e) => {
+                if (e.target.classList.contains('folder-entries')) {
+                    e.target.classList.add('drop-zone-active');
+                }
+            });
+
+            entriesContainer.addEventListener('dragleave', (e) => {
+                if (e.target.classList.contains('folder-entries')) {
+                    e.target.classList.remove('drop-zone-active');
+                }
+            });
+
         } catch (error) {
             console.error('[World Info Folders] Error in setupDragAndDrop:', error);
         }
     }
 
     function handleEntryDrop(e, entryId) {
+        console.log('[World Info Folders] Drop event triggered for entry:', entryId);
         try {
-            const dropTarget = e.target.closest('.wi-folder, .folder-entries, #world_popup_entries_list');
-            if (!dropTarget) return;
+            const dropTarget = e.target;
+            let targetFolderId = null;
+
+            // Check if dropping directly on folder entries container
+            if (dropTarget.classList.contains('folder-entries')) {
+                const folderElement = dropTarget.closest('.wi-folder');
+                targetFolderId = folderElement?.getAttribute('data-folder-id');
+            }
+            // Check if dropping on main container (to remove from folder)
+            else if (dropTarget.id === 'world_popup_entries_list') {
+                targetFolderId = null; // Remove from folder
+            }
+            // Invalid drop target
+            else {
+                console.log('[World Info Folders] Invalid drop target');
+                return;
+            }
 
             const currentWorld = getCurrentWorldName();
             if (!currentWorld) return;
 
-            let targetFolderId = null;
+            // Find the actual entry element
+            const entryElement = Array.from(document.querySelectorAll('.world_entry'))
+                .find(entry => getEntryId(entry) === entryId);
 
-            if (dropTarget.classList.contains('wi-folder') || dropTarget.closest('.wi-folder')) {
-                const folderElement = dropTarget.closest('.wi-folder');
-                targetFolderId = folderElement.getAttribute('data-folder-id');
+            if (!entryElement) {
+                console.error('[World Info Folders] Could not find entry element for ID:', entryId);
+                return;
             }
 
-            // Update entry-folder association
+            // Move the entry to the target
+            if (targetFolderId) {
+                const folderEntriesContainer = document.querySelector(`[data-folder-id="${targetFolderId}"] .folder-entries`);
+                if (folderEntriesContainer) {
+                    folderEntriesContainer.appendChild(entryElement);
+                }
+            } else {
+                const mainContainer = document.querySelector('#world_popup_entries_list');
+                mainContainer.appendChild(entryElement);
+            }
+
+            // Update settings
             if (!settings.entryFolders[currentWorld]) {
                 settings.entryFolders[currentWorld] = {};
             }
@@ -492,7 +543,7 @@
             }
 
             saveSettings();
-            renderFolders();
+            console.log('[World Info Folders] Entry moved successfully');
         } catch (error) {
             console.error('[World Info Folders] Error in handleEntryDrop:', error);
         }
@@ -536,15 +587,27 @@
 
     function getEntryId(entryElement) {
         try {
-            // Try to get UID from various possible attributes or data
-            return entryElement.getAttribute('data-uid') ||
-                   entryElement.querySelector('[data-uid]')?.getAttribute('data-uid') ||
-                   entryElement.id ||
-                   entryElement.querySelector('[name="uid"]')?.value ||
-                   Math.random().toString(36).substr(2, 9);
+            // SillyTavern typically uses data-uid or has a hidden input with the UID
+            const uidInput = entryElement.querySelector('input[name="uid"]');
+            if (uidInput && uidInput.value) {
+                return uidInput.value;
+            }
+
+            // Try other common patterns
+            const dataUid = entryElement.getAttribute('data-uid') ||
+                        entryElement.querySelector('[data-uid]')?.getAttribute('data-uid');
+            if (dataUid) {
+                return dataUid;
+            }
+
+            // Fallback - use element index as stable ID
+            const container = document.querySelector('#world_popup_entries_list');
+            const allEntries = Array.from(container.querySelectorAll('.world_entry'));
+            const index = allEntries.indexOf(entryElement);
+            return `entry_${index}`;
         } catch (error) {
             console.error('[World Info Folders] Error in getEntryId:', error);
-            return Math.random().toString(36).substr(2, 9);
+            return `fallback_${Math.random().toString(36).substr(2, 9)}`;
         }
     }
 
