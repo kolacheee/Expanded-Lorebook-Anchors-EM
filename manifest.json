@@ -5,5 +5,4 @@
   "description": "Adds collapsible and draggable folders to the World Info tab.",
   "script": "index.js",
   "style": "style.css"
-
 }

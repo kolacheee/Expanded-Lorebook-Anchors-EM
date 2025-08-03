@@ -1,17 +1,23 @@
 (function () {
-    // Wait for the DOM to be fully loaded
-    document.addEventListener('DOMContentLoaded', () => {
-        const worldInfoPanel = document.getElementById('world_info_panel');
+    const extensionName = "World Info Folders";
+    let newFolderButton;
+
+    function initializeExtension() {
         const newEntryButton = document.getElementById('world_info_new');
         const entryList = document.getElementById('world_info_entries_list');
 
-        if (!worldInfoPanel || !newEntryButton || !entryList) {
-            console.log('World Info Folders: Could not find required elements.');
+        if (!newEntryButton || !entryList) {
+            console.log(`${extensionName}: Could not find required elements.`);
+            return;
+        }
+
+        // Prevent adding the button multiple times
+        if (document.getElementById('world_info_new_folder')) {
             return;
         }
 
         // Create the "New Folder" button
-        const newFolderButton = document.createElement('div');
+        newFolderButton = document.createElement('div');
         newFolderButton.id = 'world_info_new_folder';
         newFolderButton.title = 'New Folder';
 
@@ -22,8 +28,8 @@
         new Sortable(entryList, {
             group: 'worldinfo',
             animation: 150,
-            handle: '.world-info-folder-header, .world_info_entry', // Allow dragging folders and entries
-            filter: 'input, span[contenteditable="true"]', // Prevent drag on editable elements
+            handle: '.world-info-folder-header, .world_info_entry',
+            filter: 'input, span[contenteditable="true"]',
         });
 
         // Function to create a new folder
@@ -46,7 +52,6 @@
             folder.appendChild(header);
             folder.appendChild(content);
 
-            // Add to the top of the world info list
             entryList.prepend(folder);
 
             // Make the folder content area a sortable target
@@ -70,5 +75,20 @@
 
         // Add click listener to the new folder button
         newFolderButton.addEventListener('click', createFolder);
+    }
+
+    // Use a MutationObserver to wait for the UI to be ready
+    const observer = new MutationObserver((mutations, obs) => {
+        const newEntryButton = document.getElementById('world_info_new');
+        if (newEntryButton) {
+            initializeExtension();
+            obs.disconnect(); // Stop observing once the element is found
+        }
     });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+
 })();
