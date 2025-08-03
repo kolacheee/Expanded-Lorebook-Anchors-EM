@@ -42,6 +42,12 @@
                 console.warn('[World Info Folders] extension_settings not available, using defaults');
             }
 
+            // ALSO load from localStorage immediately on init
+            setTimeout(() => {
+                loadFromWorldInfo();
+                renderFolders();
+            }, 200); // Small delay to let ST finish initial setup
+
             // Listen for World Info events if eventSource is available
             if (typeof eventSource !== 'undefined' && typeof event_types !== 'undefined') {
                 if (event_types.WORLDINFO_ENTRIES_LOADED) {
