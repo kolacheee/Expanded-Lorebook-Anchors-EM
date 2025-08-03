@@ -409,190 +409,115 @@
         }
     }
 
-    function setupDragAndDrop() {
-        try {
-            const entriesContainer = document.querySelector('#world_popup_entries_list');
-            if (!entriesContainer) return;
+function setupDragAndDrop() {
+    try {
+        const entriesContainer = document.querySelector('#world_popup_entries_list');
+        if (!entriesContainer) return;
 
-            // Handle entry drag start
-            entriesContainer.addEventListener('dragstart', (e) => {
-                try {
-                    // Prevent conflicts with ST's native drag system
-                    e.stopPropagation();
+        // Instead of creating our own drag system, intercept ST's existing one
+        interceptSillyTavernDragSystem();
 
-                    const target = e.target;
-                    if (target && (target.classList.contains('world_entry') || target.closest('.world_entry'))) {
-                        const entry = target.closest('.world_entry');
-                        if (e.dataTransfer) {
-                            e.dataTransfer.setData('text/plain', getEntryId(entry));
-                            e.dataTransfer.effectAllowed = 'move';
-                        }
-                    } else if (target && (target.classList.contains('wi-folder') || target.closest('.wi-folder'))) {
-                        const folder = target.closest('.wi-folder');
-                        if (e.dataTransfer) {
-                            e.dataTransfer.setData('application/folder', folder.getAttribute('data-folder-id'));
-                            e.dataTransfer.effectAllowed = 'move';
-                        }
-                    }
-                } catch (error) {
-                    console.error('[World Info Folders] Error in dragstart handler:', error);
-                }
-            });
+        // Keep visual feedback for folders
+        setupFolderVisualFeedback();
 
-            // Handle folder drop zones
-            entriesContainer.addEventListener('dragover', (e) => {
-                try {
-                    e.preventDefault();
-                    if (e.dataTransfer) {
-                        e.dataTransfer.dropEffect = 'move';
-                    }
-                } catch (error) {
-                    console.error('[World Info Folders] Error in dragover handler:', error);
-                }
-            });
+    } catch (error) {
+        console.error('[World Info Folders] Error in setupDragAndDrop:', error);
+    }
+}
 
-            entriesContainer.addEventListener('drop', (e) => {
-                try {
-                    e.preventDefault();
+    function interceptSillyTavernDragSystem() {
+        const entriesContainer = document.querySelector('#world_popup_entries_list');
 
-                    if (e.dataTransfer) {
-                        const entryId = e.dataTransfer.getData('text/plain');
-                        const folderId = e.dataTransfer.getData('application/folder');
-
-                        if (entryId) {
-                            handleEntryDrop(e, entryId);
-                        } else if (folderId) {
-                            handleFolderDrop(e, folderId);
-                        }
-                    }
-                } catch (error) {
-                    console.error('[World Info Folders] Error in drop handler:', error);
-                }
-                    document.querySelectorAll('.wi-folder.drag-over').forEach(folder => {
-                        folder.classList.remove('drag-over');
-                    });
-            });
-
-            entriesContainer.addEventListener('dragenter', (e) => {
+        // Override ST's drop handler by intercepting at a higher level
+        entriesContainer.addEventListener('drop', (e) => {
+            try {
+                // Check if this is a drop onto a folder
                 const folder = e.target.closest('.wi-folder');
-                if (folder) {
-                    folder.classList.add('drag-over');
-                }
-            });
+                if (!folder) return; // Let ST handle normal drops
 
-            entriesContainer.addEventListener('dragleave', (e) => {
-                const folder = e.target.closest('.wi-folder');
-                if (folder && !folder.contains(e.relatedTarget)) {
-                    folder.classList.remove('drag-over');
-                }
-            });
+                // This is a folder drop - prevent ST's default behavior
+                e.stopImmediatePropagation();
+                e.preventDefault();
 
-        } catch (error) {
-            console.error('[World Info Folders] Error in setupDragAndDrop:', error);
-        }
+                // Find the dragged entry
+                const draggedEntry = document.querySelector('.world_entry.dragging') ||
+                                    document.querySelector('.world_entry[draggable="true"]:hover');
+
+                if (!draggedEntry) {
+                    // Try to find it from ST's drag data
+                    const allEntries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
+                    const recentlyMoved = allEntries.find(entry =>
+                        entry.style.opacity === '0.5' || entry.classList.contains('dragging')
+                    );
+                    if (recentlyMoved) {
+                        handleSTEntryDrop(recentlyMoved, folder);
+                    }
+                    return;
+                }
+
+                handleSTEntryDrop(draggedEntry, folder);
+
+            } catch (error) {
+                console.error('[World Info Folders] Error intercepting ST drag:', error);
+            }
+        }, true); // Use capture phase to intercept before ST's handlers
     }
 
-    function handleEntryDrop(e, entryId) {
-        console.log('[World Info Folders] Drop event triggered for entry:', entryId);
+    function handleSTEntryDrop(entryElement, folderElement) {
         try {
-            const dropTarget = e.target;
-            let targetFolderId = null;
-
-            // Check multiple drop target possibilities
-            if (dropTarget.classList.contains('folder-entries')) {
-                // Dropped directly on entries container
-                const folderElement = dropTarget.closest('.wi-folder');
-                targetFolderId = folderElement?.getAttribute('data-folder-id');
-            }
-            else if (dropTarget.closest('.wi-folder')) {
-                // Dropped anywhere on folder (header, name, etc.)
-                const folderElement = dropTarget.closest('.wi-folder');
-                targetFolderId = folderElement?.getAttribute('data-folder-id');
-            }
-            else if (dropTarget.id === 'world_popup_entries_list' || dropTarget.closest('#world_popup_entries_list')) {
-                // Dropped on main container
-                targetFolderId = null; // Remove from folder
-            }
-            else {
-                console.log('[World Info Folders] Invalid drop target:', dropTarget);
-                return;
-            }
-
+            const entryId = getEntryId(entryElement);
+            const folderId = folderElement.getAttribute('data-folder-id');
             const currentWorld = getCurrentWorldName();
-            if (!currentWorld) return;
 
-            // Find the actual entry element
-            const entryElement = Array.from(document.querySelectorAll('.world_entry'))
-                .find(entry => getEntryId(entry) === entryId);
+            if (!currentWorld || !entryId || !folderId) return;
 
-            if (!entryElement) {
-                console.error('[World Info Folders] Could not find entry element for ID:', entryId);
-                return;
-            }
-
-            // Move the entry to the target
-            if (targetFolderId) {
-                const folderEntriesContainer = document.querySelector(`[data-folder-id="${targetFolderId}"] .folder-entries`);
-                if (folderEntriesContainer) {
-                    folderEntriesContainer.appendChild(entryElement);
-                }
-            } else {
-                const mainContainer = document.querySelector('#world_popup_entries_list');
-                mainContainer.appendChild(entryElement);
+            // Move the entry to the folder
+            const folderEntriesContainer = folderElement.querySelector('.folder-entries');
+            if (folderEntriesContainer) {
+                folderEntriesContainer.appendChild(entryElement);
             }
 
             // Update settings
             if (!settings.entryFolders[currentWorld]) {
                 settings.entryFolders[currentWorld] = {};
             }
-
-            if (targetFolderId) {
-                settings.entryFolders[currentWorld][entryId] = targetFolderId;
-            } else {
-                delete settings.entryFolders[currentWorld][entryId];
-            }
+            settings.entryFolders[currentWorld][entryId] = folderId;
 
             saveSettings();
-            console.log('[World Info Folders] Entry moved successfully');
+            console.log('[World Info Folders] Entry moved to folder via ST drag handle');
+
+            // Reset any ST drag styling
+            entryElement.style.opacity = '';
+            entryElement.classList.remove('dragging');
+
         } catch (error) {
-            console.error('[World Info Folders] Error in handleEntryDrop:', error);
+            console.error('[World Info Folders] Error in handleSTEntryDrop:', error);
         }
     }
 
-    function handleFolderDrop(e, folderId) {
-        try {
-            const dropTarget = e.target.closest('#world_popup_entries_list');
-            if (!dropTarget) return;
+    function setupFolderVisualFeedback() {
+        const entriesContainer = document.querySelector('#world_popup_entries_list');
 
-            // Simple reordering - just move folder element
-            const folderElement = document.querySelector(`[data-folder-id="${folderId}"]`);
-            if (folderElement) {
-                const rect = dropTarget.getBoundingClientRect();
-                const mouseY = e.clientY - rect.top;
-
-                // Find insertion point
-                const allFolders = Array.from(dropTarget.querySelectorAll('.wi-folder'));
-                let insertBefore = null;
-
-                for (let folder of allFolders) {
-                    if (folder === folderElement) continue;
-                    const folderRect = folder.getBoundingClientRect();
-                    const folderY = folderRect.top - rect.top;
-                    if (mouseY < folderY + folderRect.height / 2) {
-                        insertBefore = folder;
-                        break;
-                    }
-                }
-
-                if (insertBefore) {
-                    dropTarget.insertBefore(folderElement, insertBefore);
-                } else {
-                    dropTarget.appendChild(folderElement);
-                }
+        entriesContainer.addEventListener('dragenter', (e) => {
+            const folder = e.target.closest('.wi-folder');
+            if (folder) {
+                folder.classList.add('drag-over');
             }
-        } catch (error) {
-            console.error('[World Info Folders] Error in handleFolderDrop:', error);
-        }
+        });
+
+        entriesContainer.addEventListener('dragleave', (e) => {
+            const folder = e.target.closest('.wi-folder');
+            if (folder && !folder.contains(e.relatedTarget)) {
+                folder.classList.remove('drag-over');
+            }
+        });
+
+        entriesContainer.addEventListener('dragend', () => {
+            // Clean up all drag feedback
+            document.querySelectorAll('.wi-folder.drag-over').forEach(folder => {
+                folder.classList.remove('drag-over');
+            });
+        });
     }
 
     function getEntryId(entryElement) {
