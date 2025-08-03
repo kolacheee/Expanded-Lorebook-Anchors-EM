@@ -1,47 +1,45 @@
-/* World Info Folders - style.css */
-/* Styles for the extension */
-
-#world-info-new-folder-button {
-    display: inline-block;
-    cursor: pointer;
-    margin-left: 10px;
-}
-
-#world-info-new-folder-button img {
-    width: 24px;
-    height: 24px;
-    filter: invert(var(--invert-value, 0));
-    color: var(--main-text-color);
-}
-
 .world-info-folder {
-    background-color: var(--background-color-secondary);
-    border: 1px solid var(--border-color);
+    border: 1px solid #444;
     border-radius: 5px;
     margin-bottom: 10px;
+    background-color: #2e2e2e;
 }
 
 .world-info-folder-header {
-    padding: 10px;
-    cursor: pointer;
     display: flex;
     align-items: center;
+    padding: 5px;
+    cursor: pointer;
+    background-color: #3a3a3a;
 }
 
-.world-info-folder-header:hover {
-    background-color: var(--background-color-tertiary);
-}
-
-.folder-arrow {
+.world-info-folder-icon {
+    width: 20px;
+    height: 20px;
     margin-right: 10px;
-    font-size: 1.2em;
+    filter: invert(1); /* Basic way to match main text color, might need adjustment */
 }
 
-.folder-name {
+.world-info-folder-name {
+    flex-grow: 1;
     font-weight: bold;
 }
 
 .world-info-folder-content {
     padding: 10px;
-    border-top: 1px solid var(--border-color);
+    display: none; /* Initially collapsed */
+}
+
+.world-info-folder.open .world-info-folder-content {
+    display: block;
+}
+
+#world_info_new_folder {
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+#world_info_new_folder img {
+    width: 24px;
+    height: 24px;
 }

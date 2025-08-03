@@ -1,107 +1,89 @@
-// World Info Folders - index.js
-// Main script for the extension
-
 (function () {
-    // Wait for the DOM to be fully loaded
-    document.addEventListener('DOMContentLoaded', function () {
-        console.log('World Info Folders extension loaded');
-        
-        function onWorldInfoPanelLoad() {
-            const newEntryButton = document.querySelector('#world_info_new_entry_button');
-            if (newEntryButton) {
-                const newFolderButton = document.createElement('div');
-                newFolderButton.id = 'world-info-new-folder-button';
-                newFolderButton.classList.add('world_info_button');
-                newFolderButton.innerHTML = `<img src="/img/folder.svg" alt="New Folder">`;
-                newFolderButton.title = "New Folder";
-
-                newEntryButton.insertAdjacentElement('afterend', newFolderButton);
-
-                newFolderButton.addEventListener('click', () => {
-                    const folderName = prompt('Enter folder name:');
-                    if (folderName) {
-                        createFolder(folderName);
-                    }
-                });
+    // Helper function to create an element with attributes
+    function createEl(tag, attributes, ...children) {
+        const el = document.createElement(tag);
+        for (const key in attributes) {
+            el.setAttribute(key, attributes[key]);
+        }
+        children.forEach(child => {
+            if (typeof child === 'string') {
+                el.appendChild(document.createTextNode(child));
+            } else {
+                el.appendChild(child);
             }
-        }
+        });
+        return el;
+    }
 
-        function createFolder(name) {
-            const worldInfoList = document.querySelector('#world_info_list');
-            if (worldInfoList) {
-                const folderElement = document.createElement('div');
-                folderElement.classList.add('world-info-folder');
-                folderElement.innerHTML = `
-                    <div class="world-info-folder-header">
-                        <span class="folder-arrow">▶</span>
-                        <span class="folder-name">${name}</span>
-                    </div>
-                    <div class="world-info-folder-content" style="display: none;"></div>
-                `;
+    // Function to create a new folder element
+    function createFolderElement(name = 'New Folder') {
+        const folderId = `folder-${Date.now()}`;
+        const folder = createEl('div', { class: 'world-info-folder', 'data-folder-id': folderId, draggable: 'true' });
+        const header = createEl('div', { class: 'world-info-folder-header' });
+        const icon = createEl('img', { class: 'world-info-folder-icon', src: '/img/folder.svg' });
+        const nameInput = createEl('input', { type: 'text', class: 'world-info-folder-name', value: name });
+        const content = createEl('div', { class: 'world-info-folder-content' });
 
-                const header = folderElement.querySelector('.world-info-folder-header');
-                header.addEventListener('click', () => {
-                    const content = folderElement.querySelector('.world-info-folder-content');
-                    const arrow = header.querySelector('.folder-arrow');
-                    if (content.style.display === 'none') {
-                        content.style.display = 'block';
-                        arrow.textContent = '▼';
-                    } else {
-                        content.style.display = 'none';
-                        arrow.textContent = '▶';
-                    }
-                });
+        header.append(icon, nameInput);
+        folder.append(header, content);
 
-                worldInfoList.prepend(folderElement);
-
-                makeFolderDroppable(folderElement);
+        // Toggle collapse
+        header.addEventListener('click', (event) => {
+            if (event.target.tagName.toLowerCase() !== 'input') {
+                folder.classList.toggle('open');
             }
+        });
+
+        // Prevent drag from starting on input click
+        nameInput.addEventListener('mousedown', (event) => event.stopPropagation());
+
+        // Make content a drop zone for lorebook entries
+        Sortable.create(content, {
+            group: 'worldinfo',
+            animation: 150,
+            handle: '.world-info-entry',
+        });
+
+        return folder;
+    }
+
+    // Function to initialize the extension
+    function init() {
+        const newEntryButton = document.getElementById('world_info_new_entry');
+        if (!newEntryButton) {
+            console.warn('World Info Folders: Could not find new entry button.');
+            return;
         }
 
-        function makeFolderDroppable(folder) {
-            folder.addEventListener('dragover', (event) => {
-                event.preventDefault();
-            });
+        const newFolderButton = createEl('div', { id: 'world_info_new_folder', title: 'New Folder' });
+        const newFolderIcon = createEl('img', { src: '/img/folder.svg' });
+        newFolderButton.appendChild(newFolderIcon);
 
-            folder.addEventListener('drop', (event) => {
-                event.preventDefault();
-                const entryId = event.dataTransfer.getData('text/plain');
-                const entryElement = document.querySelector(`[data-id="${entryId}"]`);
-                if (entryElement) {
-                    const folderContent = folder.querySelector('.world-info-folder-content');
-                    folderContent.appendChild(entryElement);
-                }
-            });
-        }
+        newEntryButton.parentNode.insertBefore(newFolderButton, newEntryButton.nextSibling);
 
-        function makeEntriesDraggable() {
-            const entries = document.querySelectorAll('.world_info_entry');
-            entries.forEach(entry => {
-                entry.setAttribute('draggable', 'true');
-                entry.addEventListener('dragstart', (event) => {
-                    event.dataTransfer.setData('text/plain', entry.dataset.id);
-                });
-            });
-        }
+        const worldInfoContainer = document.getElementById('world_info_entries');
 
-        const observer = new MutationObserver((mutationsList, observer) => {
-            for (let mutation of mutationsList) {
-                if (mutation.type === 'childList') {
-                    // First, check if the main panel has loaded
-                    const worldInfoPanel = document.querySelector('#world_info_panel');
-                    if (worldInfoPanel && !document.querySelector('#world-info-new-folder-button')) {
-                        onWorldInfoPanelLoad();
-                    }
+        newFolderButton.addEventListener('click', () => {
+            const newFolder = createFolderElement();
+            worldInfoContainer.prepend(newFolder);
+        });
 
-                    // Then, check for new world info entries being added
-                    if (mutation.addedNodes.length > 0) {
-                        mutation.addedNodes.forEach(node => {
-                            if (node.classList && node.classList.contains('world_info_entry')) {
-                                makeEntriesDraggable();
-                            }
-                        });
-                    }
-                }
+        // Make the main container sortable for both entries and folders
+        Sortable.create(worldInfoContainer, {
+            group: 'worldinfo',
+            animation: 150,
+            handle: '.world-info-entry, .world-info-folder-header',
+            draggable: '.world-info-entry, .world-info-folder',
+        });
+    }
+
+    // Wait for the world info UI to be ready
+    document.addEventListener('DOMContentLoaded', () => {
+        // A bit of a hacky way to wait for the UI to be built by SillyTavern
+        const observer = new MutationObserver((mutations, obs) => {
+            if (document.getElementById('world_info_new_entry')) {
+                init();
+                obs.disconnect(); // Stop observing once we've initialized
             }
         });
 
