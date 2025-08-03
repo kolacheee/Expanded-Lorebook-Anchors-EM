@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "author": "Roo",
   "description": "Adds collapsible and draggable folders to the World Info tab.",
+  "loading_order": 10,
   "script": "index.js",
   "style": "style.css"
+
 }
