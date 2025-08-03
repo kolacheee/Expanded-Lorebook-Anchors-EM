@@ -1,0 +1,10 @@
+{
+  "name": "World Info Folders",
+  "version": "1.0.0",
+  "author": "Roo",
+  "description": "Adds collapsible folders to the World Info tab.",
+  "id": "world-info-folders",
+  "js": "index.js",
+  "css": "style.css",
+  "requires": ["world-info"]
+}
