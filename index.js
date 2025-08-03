@@ -93,34 +93,91 @@
             const currentWorld = getCurrentWorldName();
             if (!currentWorld) return;
 
-            // Instead of accessing world_info directly, let's store folder data
-            // in a hidden world entry that acts as our metadata store
-            saveFolderMetadata();
+            // Create a special hidden entry that stores folder metadata
+            const metadataEntry = {
+                uid: '__FOLDER_METADATA__',
+                key: '__FOLDER_METADATA__',
+                keysecondary: '',
+                comment: 'World Info Folders Extension Data - Do Not Delete',
+                content: JSON.stringify({
+                    folders: settings.folders[currentWorld] || {},
+                    entryFolders: settings.entryFolders[currentWorld] || {},
+                    version: '1.0.0'
+                }),
+                constant: false,
+                selective: true,
+                selectiveLogic: 0,
+                addMemo: false,
+                order: 999999, // Put at very end
+                position: 0,
+                disable: true, // Disabled so it doesn't affect generation
+                excludeRecursion: true
+            };
 
+            // Find existing metadata entry or create new one
+            const entriesContainer = document.querySelector('#world_popup_entries_list');
+            let metadataEntryElement = Array.from(entriesContainer.querySelectorAll('.world_entry')).find(entry => {
+                const keyInput = entry.querySelector('input[placeholder="Key"]');
+                return keyInput && keyInput.value === '__FOLDER_METADATA__';
+            });
+
+            if (!metadataEntryElement) {
+                // Trigger ST's "add new entry" function
+                const newEntryButton = document.querySelector('#world_popup_new');
+                if (newEntryButton) {
+                    newEntryButton.click();
+
+                    // Wait for new entry to be created, then populate it
+                    setTimeout(() => {
+                        populateMetadataEntry(metadataEntry);
+                    }, 100);
+                }
+            } else {
+                // Update existing metadata entry
+                updateMetadataEntry(metadataEntryElement, metadataEntry);
+            }
+
+            console.log('[World Info Folders] Saved folder data to world info metadata entry');
         } catch (error) {
             console.error('[World Info Folders] Error saving to world info:', error);
         }
     }
 
-    function saveFolderMetadata() {
+    function populateMetadataEntry(metadataEntry) {
+        // Find the newest entry (should be the one we just created)
+        const entriesContainer = document.querySelector('#world_popup_entries_list');
+        const entries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
+        const newestEntry = entries[entries.length - 1];
+
+        if (newestEntry) {
+            updateMetadataEntry(newestEntry, metadataEntry);
+        }
+    }
+
+    function updateMetadataEntry(entryElement, metadataEntry) {
         try {
-            const currentWorld = getCurrentWorldName();
-            if (!currentWorld) return;
+            // Populate the entry fields
+            const keyInput = entryElement.querySelector('input[placeholder="Key"]');
+            const commentInput = entryElement.querySelector('input[placeholder="Comment"]');
+            const contentTextarea = entryElement.querySelector('textarea[placeholder="Content"]');
+            const disableCheckbox = entryElement.querySelector('input[type="checkbox"]'); // Assuming this is the disable checkbox
 
-            // Create or update a hidden metadata entry
-            const metadataKey = `__FOLDER_METADATA_${currentWorld}__`;
-            const folderData = {
-                folders: settings.folders[currentWorld] || {},
-                entryFolders: settings.entryFolders[currentWorld] || {},
-                timestamp: Date.now()
-            };
+            if (keyInput) keyInput.value = metadataEntry.key;
+            if (commentInput) commentInput.value = metadataEntry.comment;
+            if (contentTextarea) contentTextarea.value = metadataEntry.content;
+            if (disableCheckbox) disableCheckbox.checked = metadataEntry.disable;
 
-            // Store in localStorage with world-specific key
-            localStorage.setItem(metadataKey, JSON.stringify(folderData));
+            // Trigger change events so ST knows the entry was modified
+            [keyInput, commentInput, contentTextarea, disableCheckbox].forEach(input => {
+                if (input) {
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
 
-            console.log('[World Info Folders] Saved folder metadata to localStorage');
+            console.log('[World Info Folders] Metadata entry updated');
         } catch (error) {
-            console.error('[World Info Folders] Error saving folder metadata:', error);
+            console.error('[World Info Folders] Error updating metadata entry:', error);
         }
     }
 
@@ -129,40 +186,39 @@
             const currentWorld = getCurrentWorldName();
             if (!currentWorld) return;
 
-            loadFolderMetadata();
+            // Look for metadata entry
+            const entriesContainer = document.querySelector('#world_popup_entries_list');
+            const metadataEntryElement = Array.from(entriesContainer.querySelectorAll('.world_entry')).find(entry => {
+                const keyInput = entry.querySelector('input[placeholder="Key"]');
+                return keyInput && keyInput.value === '__FOLDER_METADATA__';
+            });
 
-        } catch (error) {
-            console.error('[World Info Folders] Error loading from world info:', error);
-        }
-    }
+            if (metadataEntryElement) {
+                const contentTextarea = metadataEntryElement.querySelector('textarea[placeholder="Content"]');
+                if (contentTextarea && contentTextarea.value) {
+                    try {
+                        const folderData = JSON.parse(contentTextarea.value);
 
-    function loadFolderMetadata() {
-        try {
-            const currentWorld = getCurrentWorldName();
-            if (!currentWorld) return;
+                        // Initialize if needed
+                        if (!settings.folders[currentWorld]) {
+                            settings.folders[currentWorld] = {};
+                        }
+                        if (!settings.entryFolders[currentWorld]) {
+                            settings.entryFolders[currentWorld] = {};
+                        }
 
-            const metadataKey = `__FOLDER_METADATA_${currentWorld}__`;
-            const savedData = localStorage.getItem(metadataKey);
+                        // Load the data
+                        settings.folders[currentWorld] = folderData.folders || {};
+                        settings.entryFolders[currentWorld] = folderData.entryFolders || {};
 
-            if (savedData) {
-                const folderData = JSON.parse(savedData);
-
-                // Initialize if needed
-                if (!settings.folders[currentWorld]) {
-                    settings.folders[currentWorld] = {};
+                        console.log('[World Info Folders] Loaded folder data from world info metadata entry');
+                    } catch (parseError) {
+                        console.error('[World Info Folders] Error parsing metadata entry:', parseError);
+                    }
                 }
-                if (!settings.entryFolders[currentWorld]) {
-                    settings.entryFolders[currentWorld] = {};
-                }
-
-                // Load the data
-                settings.folders[currentWorld] = folderData.folders || {};
-                settings.entryFolders[currentWorld] = folderData.entryFolders || {};
-
-                console.log('[World Info Folders] Loaded folder metadata from localStorage');
             }
         } catch (error) {
-            console.error('[World Info Folders] Error loading folder metadata:', error);
+            console.error('[World Info Folders] Error loading from world info:', error);
         }
     }
 
