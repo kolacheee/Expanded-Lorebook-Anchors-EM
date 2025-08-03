@@ -93,87 +93,90 @@
             const currentWorld = getCurrentWorldName();
             if (!currentWorld) return;
 
-            const folderData = {
-                folders: settings.folders[currentWorld] || {},
-                entryFolders: settings.entryFolders[currentWorld] || {},
-                version: '1.0.0'
-            };
+            // Instead of creating fake entries, embed folder data in existing entries
+            const entriesContainer = document.querySelector('#world_popup_entries_list');
+            const allEntries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
 
-            // Find or create metadata entry
-            let metadataEntry = findMetadataEntry();
+            // Store folder metadata in the first entry's comment field as JSON
+            if (allEntries.length > 0) {
+                const firstEntry = allEntries[0];
+                const commentInput = firstEntry.querySelector('input[placeholder="Comment"]');
 
-            if (!metadataEntry) {
-                // Create new metadata entry by programmatically adding it
-                createMetadataEntry(JSON.stringify(folderData));
-            } else {
-                // Update existing metadata entry
-                updateMetadataEntryContent(metadataEntry, JSON.stringify(folderData));
+                if (commentInput) {
+                    const folderData = {
+                        folders: settings.folders[currentWorld] || {},
+                        entryFolders: settings.entryFolders[currentWorld] || {},
+                        version: '1.0.0'
+                    };
+
+                    // Embed in comment as special marker + JSON
+                    const existingComment = commentInput.value || '';
+                    const folderMarker = '###FOLDERS###';
+
+                    // Remove existing folder data if present
+                    const cleanComment = existingComment.split(folderMarker)[0].trim();
+
+                    // Add new folder data
+                    const newComment = cleanComment + (cleanComment ? ' ' : '') + folderMarker + JSON.stringify(folderData);
+
+                    commentInput.value = newComment;
+                    commentInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+                    console.log('[World Info Folders] Saved folder data to first entry comment');
+                }
             }
-
-            console.log('[World Info Folders] Saved folder data to metadata entry');
         } catch (error) {
             console.error('[World Info Folders] Error saving to world info:', error);
         }
     }
 
-    function findMetadataEntry() {
-        const entriesContainer = document.querySelector('#world_popup_entries_list');
-        if (!entriesContainer) return null;
+    function loadFromWorldInfo() {
+        try {
+            const currentWorld = getCurrentWorldName();
+            if (!currentWorld) return false;
 
-        return Array.from(entriesContainer.querySelectorAll('.world_entry')).find(entry => {
-            const keyInput = entry.querySelector('input[placeholder="Key"]');
-            return keyInput && keyInput.value === '__FOLDER_METADATA__';
-        });
-    }
+            // Look for folder data in first entry's comment field
+            const entriesContainer = document.querySelector('#world_popup_entries_list');
+            const allEntries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
 
-    function createMetadataEntry(folderDataJson) {
-        // We need to trigger ST's "add entry" and then populate it
-        const newEntryButton = document.querySelector('#world_popup_new');
-        if (newEntryButton) {
-            newEntryButton.click();
+            if (allEntries.length > 0) {
+                const firstEntry = allEntries[0];
+                const commentInput = firstEntry.querySelector('input[placeholder="Comment"]');
 
-            // Wait for entry to be created, then populate it
-            setTimeout(() => {
-                populateNewestEntry(folderDataJson);
-            }, 200);
-        }
-    }
+                if (commentInput && commentInput.value) {
+                    const comment = commentInput.value;
+                    const folderMarker = '###FOLDERS###';
 
-    function populateNewestEntry(folderDataJson) {
-        const entriesContainer = document.querySelector('#world_popup_entries_list');
-        const entries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
-        const newestEntry = entries[entries.length - 1];
+                    if (comment.includes(folderMarker)) {
+                        try {
+                            const jsonPart = comment.split(folderMarker)[1];
+                            const folderData = JSON.parse(jsonPart);
 
-        if (newestEntry) {
-            updateMetadataEntryContent(newestEntry, folderDataJson);
+                            // Initialize if needed
+                            if (!settings.folders[currentWorld]) {
+                                settings.folders[currentWorld] = {};
+                            }
+                            if (!settings.entryFolders[currentWorld]) {
+                                settings.entryFolders[currentWorld] = {};
+                            }
 
-            // Set the key to identify it as metadata
-            const keyInput = newestEntry.querySelector('input[placeholder="Key"]');
-            if (keyInput) {
-                keyInput.value = '__FOLDER_METADATA__';
-                keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+                            // Load the data
+                            settings.folders[currentWorld] = folderData.folders || {};
+                            settings.entryFolders[currentWorld] = folderData.entryFolders || {};
+
+                            console.log('[World Info Folders] Loaded folder data from first entry comment');
+                            return true;
+                        } catch (parseError) {
+                            console.error('[World Info Folders] Error parsing folder data:', parseError);
+                        }
+                    }
+                }
             }
 
-            // Set comment to explain what this is
-            const commentInput = newestEntry.querySelector('input[placeholder="Comment"]');
-            if (commentInput) {
-                commentInput.value = 'Folder Extension Data - Do Not Delete';
-                commentInput.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-
-            // Disable the entry so it doesn't affect generation
-            const disableCheckbox = newestEntry.querySelector('input[type="checkbox"]');
-            if (disableCheckbox && !disableCheckbox.checked) {
-                disableCheckbox.click(); // Toggle to disable
-            }
-        }
-    }
-
-    function updateMetadataEntryContent(entryElement, folderDataJson) {
-        const contentTextarea = entryElement.querySelector('textarea[placeholder="Content"]');
-        if (contentTextarea) {
-            contentTextarea.value = folderDataJson;
-            contentTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+            return false;
+        } catch (error) {
+            console.error('[World Info Folders] Error loading from world info:', error);
+            return false;
         }
     }
 
