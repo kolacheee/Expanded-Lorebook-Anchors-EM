@@ -701,6 +701,7 @@ function setupDragAndDrop() {
         } catch (error) {
             console.error('[World Info Folders] Error in saveSettings:', error);
         }
+        init();
     }
 
     // Register the extension
