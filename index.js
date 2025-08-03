@@ -69,14 +69,92 @@
         }
     }
 
+    function saveToWorldInfo() {
+        try {
+            const currentWorld = getCurrentWorldName();
+            if (!currentWorld) return;
 
+            // Get the current world info data
+            const worldSelect = document.querySelector('#world_editor_select');
+            const selectedIndex = worldSelect.selectedIndex;
+
+            if (selectedIndex <= 0) return;
+
+            // SillyTavern stores world info in world_info object
+            if (typeof world_info !== 'undefined' && world_info.globalSelect) {
+                const worldData = world_info.globalSelect[selectedIndex - 1];
+
+                if (worldData && worldData.entries) {
+                    // Add our folder data to the world info structure
+                    if (!worldData.folders) {
+                        worldData.folders = {};
+                    }
+                    if (!worldData.entryFolders) {
+                        worldData.entryFolders = {};
+                    }
+
+                    worldData.folders = settings.folders[currentWorld] || {};
+                    worldData.entryFolders = settings.entryFolders[currentWorld] || {};
+
+                    // Trigger ST's save mechanism
+                    if (typeof saveWorldInfo === 'function') {
+                        saveWorldInfo(selectedIndex - 1, false);
+                    } else if (typeof world_info.saveWorldInfo === 'function') {
+                        world_info.saveWorldInfo(selectedIndex - 1, false);
+                    }
+
+                    console.log('[World Info Folders] Saved folder data to world info file');
+                }
+            }
+        } catch (error) {
+            console.error('[World Info Folders] Error saving to world info:', error);
+        }
+    }
+
+    function loadFromWorldInfo() {
+        try {
+            const currentWorld = getCurrentWorldName();
+            if (!currentWorld) return;
+
+            const worldSelect = document.querySelector('#world_editor_select');
+            const selectedIndex = worldSelect.selectedIndex;
+
+            if (selectedIndex <= 0) return;
+
+            if (typeof world_info !== 'undefined' && world_info.globalSelect) {
+                const worldData = world_info.globalSelect[selectedIndex - 1];
+
+                if (worldData && worldData.folders) {
+                    // Load folder data from world info
+                    if (!settings.folders[currentWorld]) {
+                        settings.folders[currentWorld] = {};
+                    }
+                    if (!settings.entryFolders[currentWorld]) {
+                        settings.entryFolders[currentWorld] = {};
+                    }
+
+                    settings.folders[currentWorld] = worldData.folders || {};
+                    settings.entryFolders[currentWorld] = worldData.entryFolders || {};
+
+                    console.log('[World Info Folders] Loaded folder data from world info file');
+                }
+            }
+        } catch (error) {
+            console.error('[World Info Folders] Error loading from world info:', error);
+        }
+    }
 
     function onWorldInfoLoaded() {
         try {
-            console.log('[World Info Folders] World Info loaded, re-rendering folders');
-            // Re-render folders when World Info is reloaded
+            console.log('[World Info Folders] World Info loaded, loading folder data');
+
+            // Load folder data from the world info file first
+            loadFromWorldInfo();
+
+            // Then re-render folders
             renderFolders();
-            // Ensure folder button is present after WI reload
+
+            // Ensure folder button is present
             addFolderButtonWithRetry();
         } catch (error) {
             console.error('[World Info Folders] Error in onWorldInfoLoaded:', error);
@@ -610,17 +688,19 @@ function setupDragAndDrop() {
 
     function saveSettings() {
         try {
+            // Save to extension settings as backup
             if (typeof extension_settings !== 'undefined') {
                 extension_settings[MODULE_NAME] = settings;
             }
             if (typeof saveSettingsDebounced === 'function') {
                 saveSettingsDebounced();
             }
+
+            // ALSO save directly to world info for persistence
+            saveToWorldInfo();
         } catch (error) {
             console.error('[World Info Folders] Error in saveSettings:', error);
         }
-    }
-            init();
     }
 
     // Register the extension
