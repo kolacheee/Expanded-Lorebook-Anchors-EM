@@ -222,6 +222,36 @@
         }
     }
 
+    function loadFolderMetadata() {
+        try {
+            const currentWorld = getCurrentWorldName();
+            if (!currentWorld) return;
+
+            const metadataKey = `__FOLDER_METADATA_${currentWorld}__`;
+            const savedData = localStorage.getItem(metadataKey);
+
+            if (savedData) {
+                const folderData = JSON.parse(savedData);
+
+                // Initialize if needed
+                if (!settings.folders[currentWorld]) {
+                    settings.folders[currentWorld] = {};
+                }
+                if (!settings.entryFolders[currentWorld]) {
+                    settings.entryFolders[currentWorld] = {};
+                }
+
+                // Load the data
+                settings.folders[currentWorld] = folderData.folders || {};
+                settings.entryFolders[currentWorld] = folderData.entryFolders || {};
+
+                console.log('[World Info Folders] Loaded folder metadata from localStorage');
+            }
+        } catch (error) {
+            console.error('[World Info Folders] Error loading folder metadata:', error);
+        }
+    }
+
     function onWorldInfoLoaded() {
         try {
             console.log('[World Info Folders] World Info loaded, loading folder data');
