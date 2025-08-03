@@ -703,6 +703,10 @@ function setupDragAndDrop() {
         }
     }
 
+    // DELETING THIS BREAKS THE EXTENSION
+    init();
+}
+
     // Register the extension
     jQuery(() => {
         if (window.SillyTavern) {
