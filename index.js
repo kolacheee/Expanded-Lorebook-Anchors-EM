@@ -581,10 +581,10 @@
         }
     } catch (error) {
         console.error('[World Info Folders] Error setting up exports:', error);
+        init();
     }
 
-        init();
-        jQuery(() => {
+    jQuery(() => {
         if (window.SillyTavern) {
             WorldInfoFoldersExtension();
         }
