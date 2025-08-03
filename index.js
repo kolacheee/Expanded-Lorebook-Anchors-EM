@@ -12,11 +12,23 @@
         console.log(`[${extensionName}] Initializing extension...`);
         
         // Wait for the World Info UI to be available
+        let attempts = 0;
+        const maxAttempts = 30; // 15 seconds max
+        
         const checkWorldInfoUI = setInterval(() => {
+            attempts++;
             const worldInfoContainer = document.querySelector('#world_info');
-            if (worldInfoContainer) {
+            
+            if (worldInfoContainer || attempts >= maxAttempts) {
                 clearInterval(checkWorldInfoUI);
-                setupFolderSystem();
+                if (worldInfoContainer) {
+                    // Wait a bit more for the UI to fully render
+                    setTimeout(setupFolderSystem, 1000);
+                } else {
+                    console.log(`[${extensionName}] World Info UI not found after ${maxAttempts} attempts`);
+                    // Try to setup anyway - maybe the selectors are different
+                    setTimeout(setupFolderSystem, 1000);
+                }
             }
         }, 500);
     }
@@ -35,11 +47,55 @@
     }
 
     function addFolderButton() {
-        // Find the "New Entry" button in World Info
-        const newEntryButton = document.querySelector('#world_info_new_entry_button');
-        if (!newEntryButton) {
-            console.log(`[${extensionName}] New Entry button not found, retrying...`);
+        // Try multiple selectors for the New Entry button
+        const possibleSelectors = [
+            '#world_info_new_entry_button',
+            '[data-i18n="New Entry"]',
+            'div[title*="New Entry"]',
+            'button[title*="New Entry"]',
+            '.menu_button:contains("New Entry")',
+            '#world_info .menu_button',
+            '#world_info button:first-child',
+            '#world_info_controls .menu_button'
+        ];
+
+        let newEntryButton = null;
+        let buttonContainer = null;
+
+        for (const selector of possibleSelectors) {
+            try {
+                newEntryButton = document.querySelector(selector);
+                if (newEntryButton) {
+                    buttonContainer = newEntryButton.parentNode;
+                    break;
+                }
+            } catch (e) {
+                // Ignore invalid selectors
+            }
+        }
+
+        // Try to find the button container even if we can't find the exact button
+        if (!buttonContainer) {
+            const worldInfoContainer = document.querySelector('#world_info');
+            if (worldInfoContainer) {
+                // Look for any button container in world info
+                buttonContainer = worldInfoContainer.querySelector('.world_buttons, .world_info_buttons, .menu_buttons, div[style*="flex"], div[class*="button"]');
+                if (!buttonContainer) {
+                    // Create a button container if none exists
+                    buttonContainer = worldInfoContainer.querySelector('#world_info_entries_list')?.parentNode;
+                }
+            }
+        }
+
+        if (!buttonContainer) {
+            console.log(`[${extensionName}] Button container not found, retrying...`);
             setTimeout(addFolderButton, 1000);
+            return;
+        }
+
+        // Check if folder button already exists
+        if (document.querySelector('#world_info_new_folder_button')) {
+            console.log(`[${extensionName}] Folder button already exists`);
             return;
         }
 
@@ -62,8 +118,14 @@
         buttonText.textContent = 'New Folder';
         folderButton.appendChild(buttonText);
         
-        // Insert button next to New Entry button
-        newEntryButton.parentNode.insertBefore(folderButton, newEntryButton.nextSibling);
+        // Insert button in the container
+        if (newEntryButton) {
+            // Insert after the New Entry button if found
+            newEntryButton.parentNode.insertBefore(folderButton, newEntryButton.nextSibling);
+        } else {
+            // Append to the container if New Entry button not found
+            buttonContainer.appendChild(folderButton);
+        }
         
         // Add click event
         folderButton.addEventListener('click', createNewFolder);
@@ -93,8 +155,35 @@
     }
 
     function renderFolder(folder) {
-        const worldInfoList = document.querySelector('#world_info_entries_list');
-        if (!worldInfoList) return;
+        // Try multiple selectors for the world info entries list
+        const possibleListSelectors = [
+            '#world_info_entries_list',
+            '#world_info_entries',
+            '#world_info .entries',
+            '#world_info [class*="entries"]',
+            '#world_info [class*="list"]'
+        ];
+
+        let worldInfoList = null;
+        for (const selector of possibleListSelectors) {
+            worldInfoList = document.querySelector(selector);
+            if (worldInfoList) break;
+        }
+
+        if (!worldInfoList) {
+            // Try to find any container within world_info
+            const worldInfoContainer = document.querySelector('#world_info');
+            if (worldInfoContainer) {
+                // Look for a container that might hold entries
+                worldInfoList = worldInfoContainer.querySelector('div[style*="overflow"], .scrollable, [class*="container"]') ||
+                               worldInfoContainer.querySelector('div:last-child');
+            }
+        }
+
+        if (!worldInfoList) {
+            console.log(`[${extensionName}] World Info entries list not found`);
+            return;
+        }
 
         const folderElement = document.createElement('div');
         folderElement.className = 'world-info-folder';
@@ -211,9 +300,12 @@
             dropZone.classList.remove('drag-over');
             
             const draggedElement = document.querySelector('.dragging');
-            if (draggedElement && draggedElement.classList.contains('world_entry')) {
+            if (draggedElement && (draggedElement.classList.contains('world_entry') ||
+                                  draggedElement.matches('[class*="entry"]') ||
+                                  draggedElement.hasAttribute('data-entry'))) {
                 // Move entry to folder
-                const entryId = draggedElement.dataset.id;
+                const entryId = draggedElement.dataset.id || draggedElement.dataset.entry ||
+                               draggedElement.getAttribute('data-uid') || Date.now().toString();
                 moveEntryToFolder(entryId, folderId);
                 dropZone.appendChild(draggedElement);
                 
@@ -234,9 +326,19 @@
             mutations.forEach((mutation) => {
                 mutation.addedNodes.forEach((node) => {
                     if (node.nodeType === Node.ELEMENT_NODE) {
-                        // Setup drag for new entries
-                        const entries = node.querySelectorAll ? node.querySelectorAll('.world_entry') : 
-                                       (node.classList && node.classList.contains('world_entry') ? [node] : []);
+                        // Setup drag for new entries - try multiple selectors
+                        const entrySelectors = ['.world_entry', '[class*="entry"]', '[data-entry]', '.lorebook_entry'];
+                        let entries = [];
+                        
+                        for (const selector of entrySelectors) {
+                            try {
+                                const found = node.querySelectorAll ? node.querySelectorAll(selector) :
+                                             (node.classList && node.matches && node.matches(selector) ? [node] : []);
+                                entries = entries.concat(Array.from(found));
+                            } catch (e) {
+                                // Ignore invalid selectors
+                            }
+                        }
                         
                         entries.forEach(setupEntryDrag);
                         
@@ -255,8 +357,15 @@
             subtree: true
         });
 
-        // Setup existing entries
-        document.querySelectorAll('.world_entry').forEach(setupEntryDrag);
+        // Setup existing entries - try multiple selectors
+        const entrySelectors = ['.world_entry', '[class*="entry"]', '[data-entry]', '.lorebook_entry'];
+        for (const selector of entrySelectors) {
+            try {
+                document.querySelectorAll(selector).forEach(setupEntryDrag);
+            } catch (e) {
+                // Ignore invalid selectors
+            }
+        }
         document.querySelectorAll('.world-info-folder').forEach(setupFolderDrag);
     }
 

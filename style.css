@@ -4,26 +4,33 @@
     display: inline-flex !important;
     align-items: center;
     gap: 5px;
-    margin-left: 10px;
+    margin: 0 5px;
     padding: 8px 12px;
-    background: var(--grey70);
-    border: 1px solid var(--grey60);
+    background: var(--grey70, #4a4a4a);
+    border: 1px solid var(--grey60, #5a5a5a);
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
     font-size: 13px;
-    color: var(--main-text-color);
+    color: var(--main-text-color, #ffffff);
+    white-space: nowrap;
 }
 
 .folder-button:hover {
-    background: var(--grey60);
-    border-color: var(--grey50);
+    background: var(--grey60, #5a5a5a);
+    border-color: var(--grey50, #6a6a6a);
 }
 
 .folder-icon {
     width: 16px;
     height: 16px;
-    filter: brightness(0) saturate(100%) invert(var(--main-text-color-invert, 0));
+    fill: currentColor;
+}
+
+/* Ensure the SVG icon uses currentColor */
+.folder-icon svg,
+.folder-icon-small svg {
+    fill: currentColor;
 }
 
 .world-info-folder {
