@@ -44,6 +44,17 @@
 
             // Listen for World Info events if eventSource is available
             if (typeof eventSource !== 'undefined' && typeof event_types !== 'undefined') {
+                if (event_types.WORLDINFO_ENTRIES_LOADED) {
+                    eventSource.on(event_types.WORLDINFO_ENTRIES_LOADED, onWorldInfoLoaded);
+                }
+                // Also listen for individual entry changes
+                if (event_types.WORLDINFO_ENTRY_ADDED) {
+                    eventSource.on(event_types.WORLDINFO_ENTRY_ADDED, onWorldInfoLoaded);
+                }
+                if (event_types.WORLDINFO_ENTRY_DELETED) {
+                    eventSource.on(event_types.WORLDINFO_ENTRY_DELETED, onWorldInfoLoaded);
+                }
+
                 // Listen for world changes
                 const worldSelect = document.querySelector('#world_editor_select');
                 if (worldSelect) {
@@ -55,17 +66,7 @@
                         }, 100);
                     });
                 }
-            }
-                if (event_types.WORLDINFO_ENTRIES_LOADED) {
-                    eventSource.on(event_types.WORLDINFO_ENTRIES_LOADED, onWorldInfoLoaded);
-                }
-                // Also listen for individual entry changes
-                if (event_types.WORLDINFO_ENTRY_ADDED) {
-                    eventSource.on(event_types.WORLDINFO_ENTRY_ADDED, onWorldInfoLoaded);
-                }
-                if (event_types.WORLDINFO_ENTRY_DELETED) {
-                    eventSource.on(event_types.WORLDINFO_ENTRY_DELETED, onWorldInfoLoaded);
-                }
+
                 console.log('[World Info Folders] Event listeners registered');
             }
 
