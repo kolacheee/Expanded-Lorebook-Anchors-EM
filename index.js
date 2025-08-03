@@ -43,12 +43,22 @@
             }
 
             // Listen for World Info events if eventSource is available
-            if (typeof eventSource !== 'undefined' && typeof event_types !== 'undefined' && event_types.WORLDINFO_ENTRIES_LOADED) {
-                eventSource.on(event_types.WORLDINFO_ENTRIES_LOADED, onWorldInfoLoaded);
-                console.log('[World Info Folders] Event listener registered');
-            } else {
-                console.warn('[World Info Folders] Event system not available');
+            if (typeof eventSource !== 'undefined' && typeof event_types !== 'undefined') {
+                if (event_types.WORLDINFO_ENTRIES_LOADED) {
+                    eventSource.on(event_types.WORLDINFO_ENTRIES_LOADED, onWorldInfoLoaded);
+                }
+                // Also listen for individual entry changes
+                if (event_types.WORLDINFO_ENTRY_ADDED) {
+                    eventSource.on(event_types.WORLDINFO_ENTRY_ADDED, onWorldInfoLoaded);
+                }
+                if (event_types.WORLDINFO_ENTRY_DELETED) {
+                    eventSource.on(event_types.WORLDINFO_ENTRY_DELETED, onWorldInfoLoaded);
+                }
+                console.log('[World Info Folders] Event listeners registered');
             }
+
+            // Also use MutationObserver as backup
+            observeWorldInfoChanges();
 
             // Try to add folder button with multiple attempts
             addFolderButtonWithRetry();
@@ -58,6 +68,8 @@
             console.error('[World Info Folders] Error during initialization:', error);
         }
     }
+
+
 
     function onWorldInfoLoaded() {
         try {
@@ -69,6 +81,41 @@
         } catch (error) {
             console.error('[World Info Folders] Error in onWorldInfoLoaded:', error);
         }
+    }
+
+    function observeWorldInfoChanges() {
+        const entriesContainer = document.querySelector('#world_popup_entries_list');
+        if (!entriesContainer) return;
+
+        const observer = new MutationObserver((mutations) => {
+            let shouldRerender = false;
+
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'childList') {
+                    // Check if new entries were added or removed
+                    const addedEntries = Array.from(mutation.addedNodes).filter(node =>
+                        node.nodeType === Node.ELEMENT_NODE && node.classList?.contains('world_entry')
+                    );
+                    const removedEntries = Array.from(mutation.removedNodes).filter(node =>
+                        node.nodeType === Node.ELEMENT_NODE && node.classList?.contains('world_entry')
+                    );
+
+                    if (addedEntries.length > 0 || removedEntries.length > 0) {
+                        shouldRerender = true;
+                    }
+                }
+            });
+
+            if (shouldRerender) {
+                console.log('[World Info Folders] World Info DOM changed, re-rendering folders');
+                setTimeout(() => renderFolders(), 100); // Small delay to let ST finish its work
+            }
+        });
+
+        observer.observe(entriesContainer, {
+            childList: true,
+            subtree: true
+        });
     }
 
     function addFolderButtonWithRetry(attempts = 0) {
@@ -428,39 +475,45 @@ function setupDragAndDrop() {
     function interceptSillyTavernDragSystem() {
         const entriesContainer = document.querySelector('#world_popup_entries_list');
 
-        // Override ST's drop handler by intercepting at a higher level
-        entriesContainer.addEventListener('drop', (e) => {
-            try {
-                // Check if this is a drop onto a folder
-                const folder = e.target.closest('.wi-folder');
-                if (!folder) return; // Let ST handle normal drops
+        // Use a more comprehensive approach to detect ST's drag operations
+        let draggedEntry = null;
 
-                // This is a folder drop - prevent ST's default behavior
-                e.stopImmediatePropagation();
-                e.preventDefault();
-
-                // Find the dragged entry
-                const draggedEntry = document.querySelector('.world_entry.dragging') ||
-                                    document.querySelector('.world_entry[draggable="true"]:hover');
-
-                if (!draggedEntry) {
-                    // Try to find it from ST's drag data
-                    const allEntries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
-                    const recentlyMoved = allEntries.find(entry =>
-                        entry.style.opacity === '0.5' || entry.classList.contains('dragging')
-                    );
-                    if (recentlyMoved) {
-                        handleSTEntryDrop(recentlyMoved, folder);
-                    }
-                    return;
-                }
-
-                handleSTEntryDrop(draggedEntry, folder);
-
-            } catch (error) {
-                console.error('[World Info Folders] Error intercepting ST drag:', error);
+        // Detect when ST starts dragging an entry
+        entriesContainer.addEventListener('dragstart', (e) => {
+            if (e.target.closest('.world_entry')) {
+                draggedEntry = e.target.closest('.world_entry');
             }
-        }, true); // Use capture phase to intercept before ST's handlers
+        }, true);
+
+        // Detect drops on folders with higher priority than ST's handlers
+        entriesContainer.addEventListener('dragover', (e) => {
+            const folder = e.target.closest('.wi-folder');
+            if (folder && draggedEntry) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, true);
+
+        entriesContainer.addEventListener('drop', (e) => {
+            const folder = e.target.closest('.wi-folder');
+
+            if (folder && draggedEntry) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+
+                console.log('[World Info Folders] Intercepted ST drag to folder');
+                handleSTEntryDrop(draggedEntry, folder);
+                draggedEntry = null;
+                return false;
+            }
+
+            draggedEntry = null;
+        }, true);
+
+        // Clean up on drag end
+        entriesContainer.addEventListener('dragend', () => {
+            draggedEntry = null;
+        }, true);
     }
 
     function handleSTEntryDrop(entryElement, folderElement) {
