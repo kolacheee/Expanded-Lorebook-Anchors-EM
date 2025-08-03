@@ -1,4 +1,4 @@
-(() => {
+(() =>
     'use strict';
     /* global extension_settings, eventSource, event_types, toastr, saveSettingsDebounced */
 
@@ -567,9 +567,10 @@
         } catch (error) {
             console.error('[World Info Folders] Error in saveSettings:', error);
         }
+        init();
     }
 
-
+    // Register the extension
     jQuery(() => {
         if (window.SillyTavern) {
             WorldInfoFoldersExtension();
