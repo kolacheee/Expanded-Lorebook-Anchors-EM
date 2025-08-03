@@ -1,0 +1,47 @@
+/* World Info Folders - style.css */
+/* Styles for the extension */
+
+#world-info-new-folder-button {
+    display: inline-block;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+#world-info-new-folder-button img {
+    width: 24px;
+    height: 24px;
+    filter: invert(var(--invert-value, 0));
+    color: var(--main-text-color);
+}
+
+.world-info-folder {
+    background-color: var(--background-color-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+.world-info-folder-header {
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.world-info-folder-header:hover {
+    background-color: var(--background-color-tertiary);
+}
+
+.folder-arrow {
+    margin-right: 10px;
+    font-size: 1.2em;
+}
+
+.folder-name {
+    font-weight: bold;
+}
+
+.world-info-folder-content {
+    padding: 10px;
+    border-top: 1px solid var(--border-color);
+}
