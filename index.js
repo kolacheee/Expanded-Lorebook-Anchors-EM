@@ -1,9 +1,12 @@
-(function () {
+(() => {
+    'use strict';
     /* global extension_settings, eventSource, event_types, toastr, saveSettingsDebounced */
-    // World Info Folders Extension for SillyTavern
-    // This extension adds folder organization functionality to World Info entries
 
-    const MODULE_NAME = 'world-info-folders';
+    function WorldInfoFoldersExtension() {
+        // World Info Folders Extension for SillyTavern
+        // This extension adds folder organization functionality to World Info entries
+
+        const MODULE_NAME = 'world-info-folders';
 
     // Default settings
     const defaultSettings = {
@@ -580,29 +583,10 @@
         console.error('[World Info Folders] Error setting up exports:', error);
     }
 
-    // Wait for SillyTavern to be fully loaded before initializing
-    function waitForSillyTavern() {
-        try {
-            // Check if key SillyTavern objects are available
-            if (typeof extension_settings !== 'undefined') {
-                console.log('[World Info Folders] SillyTavern detected, initializing...');
-                init();
-            } else {
-                console.log('[World Info Folders] Waiting for SillyTavern...');
-                setTimeout(waitForSillyTavern, 500);
-            }
-        } catch (error) {
-            console.error('[World Info Folders] Error in waitForSillyTavern:', error);
-            // Try again in case it was a temporary error
-            setTimeout(waitForSillyTavern, 1000);
+        init();
+        jQuery(() => {
+        if (window.SillyTavern) {
+            WorldInfoFoldersExtension();
         }
-    }
-
-    // Start the initialization process
-    console.log('[World Info Folders] Extension loading...');
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', waitForSillyTavern);
-    } else {
-        waitForSillyTavern();
-    }
+    });
 })();
