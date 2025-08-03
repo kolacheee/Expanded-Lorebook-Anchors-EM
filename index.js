@@ -1,95 +1,74 @@
 (function () {
-    // Helper function to create an element with attributes
-    function createEl(tag, attributes, ...children) {
-        const el = document.createElement(tag);
-        for (const key in attributes) {
-            el.setAttribute(key, attributes[key]);
-        }
-        children.forEach(child => {
-            if (typeof child === 'string') {
-                el.appendChild(document.createTextNode(child));
-            } else {
-                el.appendChild(child);
-            }
-        });
-        return el;
-    }
+    // Wait for the DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', () => {
+        const worldInfoPanel = document.getElementById('world_info_panel');
+        const newEntryButton = document.getElementById('world_info_new');
+        const entryList = document.getElementById('world_info_entries_list');
 
-    // Function to create a new folder element
-    function createFolderElement(name = 'New Folder') {
-        const folderId = `folder-${Date.now()}`;
-        const folder = createEl('div', { class: 'world-info-folder', 'data-folder-id': folderId, draggable: 'true' });
-        const header = createEl('div', { class: 'world-info-folder-header' });
-        const icon = createEl('img', { class: 'world-info-folder-icon', src: '/img/folder.svg' });
-        const nameInput = createEl('input', { type: 'text', class: 'world-info-folder-name', value: name });
-        const content = createEl('div', { class: 'world-info-folder-content' });
-
-        header.append(icon, nameInput);
-        folder.append(header, content);
-
-        // Toggle collapse
-        header.addEventListener('click', (event) => {
-            if (event.target.tagName.toLowerCase() !== 'input') {
-                folder.classList.toggle('open');
-            }
-        });
-
-        // Prevent drag from starting on input click
-        nameInput.addEventListener('mousedown', (event) => event.stopPropagation());
-
-        // Make content a drop zone for lorebook entries
-        Sortable.create(content, {
-            group: 'worldinfo',
-            animation: 150,
-            handle: '.world-info-entry',
-        });
-
-        return folder;
-    }
-
-    // Function to initialize the extension
-    function init() {
-        const newEntryButton = document.getElementById('world_info_new_entry');
-        if (!newEntryButton) {
-            console.warn('World Info Folders: Could not find new entry button.');
+        if (!worldInfoPanel || !newEntryButton || !entryList) {
+            console.log('World Info Folders: Could not find required elements.');
             return;
         }
 
-        const newFolderButton = createEl('div', { id: 'world_info_new_folder', title: 'New Folder' });
-        const newFolderIcon = createEl('img', { src: '/img/folder.svg' });
-        newFolderButton.appendChild(newFolderIcon);
+        // Create the "New Folder" button
+        const newFolderButton = document.createElement('div');
+        newFolderButton.id = 'world_info_new_folder';
+        newFolderButton.title = 'New Folder';
 
+        // Insert the new button after the "New Entry" button
         newEntryButton.parentNode.insertBefore(newFolderButton, newEntryButton.nextSibling);
 
-        const worldInfoContainer = document.getElementById('world_info_entries');
-
-        newFolderButton.addEventListener('click', () => {
-            const newFolder = createFolderElement();
-            worldInfoContainer.prepend(newFolder);
-        });
-
-        // Make the main container sortable for both entries and folders
-        Sortable.create(worldInfoContainer, {
+        // Initialize Sortable for the main entry list
+        new Sortable(entryList, {
             group: 'worldinfo',
             animation: 150,
-            handle: '.world-info-entry, .world-info-folder-header',
-            draggable: '.world-info-entry, .world-info-folder',
-        });
-    }
-
-    // Wait for the world info UI to be ready
-    document.addEventListener('DOMContentLoaded', () => {
-        // A bit of a hacky way to wait for the UI to be built by SillyTavern
-        const observer = new MutationObserver((mutations, obs) => {
-            if (document.getElementById('world_info_new_entry')) {
-                init();
-                obs.disconnect(); // Stop observing once we've initialized
-            }
+            handle: '.world-info-folder-header, .world_info_entry', // Allow dragging folders and entries
+            filter: 'input, span[contenteditable="true"]', // Prevent drag on editable elements
         });
 
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
+        // Function to create a new folder
+        const createFolder = () => {
+            const folder = document.createElement('div');
+            folder.className = 'world-info-folder';
+
+            const header = document.createElement('div');
+            header.className = 'world-info-folder-header';
+
+            const folderName = document.createElement('span');
+            folderName.textContent = 'New Folder';
+            folderName.contentEditable = 'true';
+
+            header.appendChild(folderName);
+
+            const content = document.createElement('div');
+            content.className = 'world-info-folder-content';
+
+            folder.appendChild(header);
+            folder.appendChild(content);
+
+            // Add to the top of the world info list
+            entryList.prepend(folder);
+
+            // Make the folder content area a sortable target
+            new Sortable(content, {
+                group: 'worldinfo',
+                animation: 150,
+            });
+
+            // Toggle folder content visibility
+            header.addEventListener('click', (event) => {
+                if (event.target === header || event.target === folderName) {
+                    folder.classList.toggle('open');
+                }
+            });
+
+            // Prevent header click from triggering when editing name
+            folderName.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+        };
+
+        // Add click listener to the new folder button
+        newFolderButton.addEventListener('click', createFolder);
     });
 })();

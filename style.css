@@ -1,45 +1,32 @@
+#world_info_new_folder {
+    mask-image: url('/img/folder.svg');
+    background-color: var(--main-text);
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    display: inline-block;
+    margin-left: 10px;
+}
+
 .world-info-folder {
-    border: 1px solid #444;
+    border: 1px solid var(--border-color);
     border-radius: 5px;
-    margin-bottom: 10px;
-    background-color: #2e2e2e;
+    margin-bottom: 5px;
 }
 
 .world-info-folder-header {
-    display: flex;
-    align-items: center;
     padding: 5px;
+    background-color: var(--secondary-bg);
     cursor: pointer;
-    background-color: #3a3a3a;
-}
-
-.world-info-folder-icon {
-    width: 20px;
-    height: 20px;
-    margin-right: 10px;
-    filter: invert(1); /* Basic way to match main text color, might need adjustment */
-}
-
-.world-info-folder-name {
-    flex-grow: 1;
-    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
 }
 
 .world-info-folder-content {
-    padding: 10px;
-    display: none; /* Initially collapsed */
+    padding: 5px;
+    display: none; /* Hidden by default */
 }
 
 .world-info-folder.open .world-info-folder-content {
     display: block;
-}
-
-#world_info_new_folder {
-    cursor: pointer;
-    margin-left: 10px;
-}
-
-#world_info_new_folder img {
-    width: 24px;
-    height: 24px;
 }
