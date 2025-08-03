@@ -201,17 +201,25 @@
         const entriesContainer = document.querySelector('#world_popup_entries_list');
         if (!entriesContainer) return;
 
+        let isRendering = false; // Prevent infinite loops
+
         const observer = new MutationObserver((mutations) => {
+            if (isRendering) return; // Skip if we're currently rendering
+
             let shouldRerender = false;
 
             mutations.forEach((mutation) => {
                 if (mutation.type === 'childList') {
-                    // Check if new entries were added or removed
+                    // Only re-render for actual entry additions/removals, not folder operations
                     const addedEntries = Array.from(mutation.addedNodes).filter(node =>
-                        node.nodeType === Node.ELEMENT_NODE && node.classList?.contains('world_entry')
+                        node.nodeType === Node.ELEMENT_NODE &&
+                        node.classList?.contains('world_entry') &&
+                        !node.closest('.wi-folder') // Ignore entries being moved into folders
                     );
                     const removedEntries = Array.from(mutation.removedNodes).filter(node =>
-                        node.nodeType === Node.ELEMENT_NODE && node.classList?.contains('world_entry')
+                        node.nodeType === Node.ELEMENT_NODE &&
+                        node.classList?.contains('world_entry') &&
+                        !mutation.target.classList?.contains('folder-entries') // Ignore folder operations
                     );
 
                     if (addedEntries.length > 0 || removedEntries.length > 0) {
@@ -221,14 +229,18 @@
             });
 
             if (shouldRerender) {
-                console.log('[World Info Folders] World Info DOM changed, re-rendering folders');
-                setTimeout(() => renderFolders(), 100); // Small delay to let ST finish its work
+                console.log('[World Info Folders] New entries detected, re-rendering folders');
+                isRendering = true;
+                setTimeout(() => {
+                    renderFolders();
+                    isRendering = false;
+                }, 100);
             }
         });
 
         observer.observe(entriesContainer, {
             childList: true,
-            subtree: true
+            subtree: false // Only watch direct children, not nested changes
         });
     }
 
@@ -363,36 +375,35 @@
                 return;
             }
 
-            // Get all existing entry elements
-            const existingEntries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
-
-            // Make sure all entries are draggable
-            existingEntries.forEach(entry => {
-                entry.draggable = true;
-            });
-
-            // Create folder containers
+            // Only create folders that don't already exist
             const folders = settings.folders[currentWorld];
             Object.values(folders).forEach(folder => {
-                createFolderElement(folder, entriesContainer);
+                const existingFolder = document.querySelector(`[data-folder-id="${folder.id}"]`);
+                if (!existingFolder) {
+                    createFolderElement(folder, entriesContainer);
+                }
             });
 
-            // Move entries to their assigned folders
+            // Only move entries that aren't already in the right place
+            const existingEntries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
             existingEntries.forEach(entry => {
                 const entryId = getEntryId(entry);
-                console.log('[World Info Folders] Entry ID:', entryId, 'for element:', entry);
                 const folderId = getFolderForEntry(currentWorld, entryId);
 
                 if (folderId && folders[folderId]) {
                     const folderElement = document.querySelector(`[data-folder-id="${folderId}"] .folder-entries`);
-                    if (folderElement) {
+                    if (folderElement && !folderElement.contains(entry)) {
+                        // Only move if not already in the correct folder
                         folderElement.appendChild(entry);
                     }
                 }
             });
 
-            // Setup drag and drop
-            setupDragAndDrop();
+            // Setup drag and drop only once
+            if (!entriesContainer.hasAttribute('data-drag-setup')) {
+                setupDragAndDrop();
+                entriesContainer.setAttribute('data-drag-setup', 'true');
+            }
         } catch (error) {
             console.error('[World Info Folders] Error in renderFolders:', error);
         }
