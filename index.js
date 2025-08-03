@@ -9,25 +9,6 @@
 
         const MODULE_NAME = 'world-info-folders';
 
-    // Default settings
-    const defaultSettings = {
-        folders: {},
-        entryFolders: {},
-        folderStates: {}
-    };
-
-    let settings = defaultSettings;
-
-    // Folder data structure
-    class WorldInfoFolder {
-        constructor(id, name, collapsed = false) {
-            this.id = id;
-            this.name = name;
-            this.collapsed = collapsed;
-            this.entries = [];
-        }
-    }
-
     // Initialize extension
     function init() {
         try {
@@ -80,7 +61,7 @@
             observeWorldInfoChanges();
 
             // Try to add folder button with multiple attempts
-            addFolderButtonWithRetry();
+            createFolderEntryWithRetry();
 
             console.log('[World Info Folders] Extension initialized successfully');
         } catch (error) {
@@ -88,45 +69,210 @@
         }
     }
 
-    function saveToWorldInfo() {
+    function createFolderEntry(folderName) {
         try {
-            const currentWorld = getCurrentWorldName();
-            if (!currentWorld) return;
+            // Trigger ST's new entry creation
+            const newEntryButton = document.querySelector('#world_popup_new');
+            if (!newEntryButton) return;
 
-            // Instead of creating fake entries, embed folder data in existing entries
-            const entriesContainer = document.querySelector('#world_popup_entries_list');
-            const allEntries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
+            newEntryButton.click();
 
-            // Store folder metadata in the first entry's comment field as JSON
-            if (allEntries.length > 0) {
-                const firstEntry = allEntries[0];
-                const commentInput = firstEntry.querySelector('input[placeholder="Comment"]');
+            // Wait for new entry to be created, then convert it to folder
+            setTimeout(() => {
+                const entriesContainer = document.querySelector('#world_popup_entries_list');
+                const entries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
+                const newestEntry = entries[entries.length - 1];
 
-                if (commentInput) {
-                    const folderData = {
-                        folders: settings.folders[currentWorld] || {},
-                        entryFolders: settings.entryFolders[currentWorld] || {},
-                        version: '1.0.0'
-                    };
-
-                    // Embed in comment as special marker + JSON
-                    const existingComment = commentInput.value || '';
-                    const folderMarker = '###FOLDERS###';
-
-                    // Remove existing folder data if present
-                    const cleanComment = existingComment.split(folderMarker)[0].trim();
-
-                    // Add new folder data
-                    const newComment = cleanComment + (cleanComment ? ' ' : '') + folderMarker + JSON.stringify(folderData);
-
-                    commentInput.value = newComment;
-                    commentInput.dispatchEvent(new Event('input', { bubbles: true }));
-
-                    console.log('[World Info Folders] Saved folder data to first entry comment');
+                if (newestEntry) {
+                    convertEntryToFolder(newestEntry, folderName);
                 }
-            }
+            }, 100);
         } catch (error) {
-            console.error('[World Info Folders] Error saving to world info:', error);
+            console.error('[World Info Folders] Error creating folder entry:', error);
+        }
+    }
+
+    function convertEntryToFolder(entryElement, folderName) {
+        try {
+            // Set the key to identify this as a folder
+            const keyInput = entryElement.querySelector('input[placeholder="Key"]');
+            if (keyInput) {
+                keyInput.value = `FOLDER:${folderName}`;
+                keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            // Set comment to explain what this is
+            const commentInput = entryElement.querySelector('input[placeholder="Comment"]');
+            if (commentInput) {
+                commentInput.value = `Folder: ${folderName} (Extension)`;
+                commentInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            // Set content to store folder metadata
+            const contentTextarea = entryElement.querySelector('textarea[placeholder="Content"]');
+            if (contentTextarea) {
+                const folderData = {
+                    type: 'folder',
+                    name: folderName,
+                    collapsed: false,
+                    entries: [] // Store child entry IDs
+                };
+                contentTextarea.value = JSON.stringify(folderData);
+                contentTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            // Disable the entry so it doesn't affect generation
+            const disableCheckbox = entryElement.querySelector('input[type="checkbox"]');
+            if (disableCheckbox && !disableCheckbox.checked) {
+                disableCheckbox.click();
+            }
+
+            // Apply folder styling immediately
+            styleFolderEntry(entryElement);
+
+            console.log('[World Info Folders] Entry converted to folder');
+        } catch (error) {
+            console.error('[World Info Folders] Error converting entry to folder:', error);
+        }
+    }
+
+    function styleFolderEntry(entryElement) {
+        try {
+            // Add folder class for CSS targeting
+            entryElement.classList.add('wi-folder-entry');
+
+            // Hide/modify entry fields to look like a folder
+            const keyInput = entryElement.querySelector('input[placeholder="Key"]');
+            const commentInput = entryElement.querySelector('input[placeholder="Comment"]');
+            const contentTextarea = entryElement.querySelector('textarea[placeholder="Content"]');
+
+            if (keyInput) {
+                keyInput.style.display = 'none'; // Hide the key input
+            }
+
+            if (commentInput) {
+                commentInput.style.display = 'none'; // Hide comment
+            }
+
+            if (contentTextarea) {
+                contentTextarea.style.display = 'none'; // Hide content
+            }
+
+            // Create folder-like UI elements
+            const folderHeader = document.createElement('div');
+            folderHeader.className = 'folder-display-header';
+
+            // Extract folder name from key
+            const folderName = keyInput ? keyInput.value.replace('FOLDER:', '') : 'Unnamed Folder';
+
+            // Collapse/expand icon
+            const collapseIcon = document.createElement('i');
+            collapseIcon.className = 'fa-solid fa-chevron-down folder-collapse-icon';
+            collapseIcon.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleFolderEntry(entryElement);
+            });
+
+            // Folder icon
+            const folderIcon = document.createElement('i');
+            folderIcon.className = 'fa-solid fa-folder folder-icon';
+
+            // Folder name display
+            const nameDisplay = document.createElement('span');
+            nameDisplay.className = 'folder-name-display';
+            nameDisplay.textContent = folderName;
+
+            // Make name editable on double-click
+            nameDisplay.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                editFolderName(entryElement, nameDisplay);
+            });
+
+            folderHeader.appendChild(collapseIcon);
+            folderHeader.appendChild(folderIcon);
+            folderHeader.appendChild(nameDisplay);
+
+            // Insert folder header at the top of the entry
+            entryElement.insertBefore(folderHeader, entryElement.firstChild);
+
+            // Create drop zone for child entries
+            const dropZone = document.createElement('div');
+            dropZone.className = 'folder-drop-zone';
+            dropZone.textContent = 'Drop entries here';
+            entryElement.appendChild(dropZone);
+
+            // Set up drop handling on the entire folder entry
+            setupFolderDropHandling(entryElement);
+
+        } catch (error) {
+            console.error('[World Info Folders] Error styling folder entry:', error);
+        }
+    }
+
+    function setupFolderDropHandling(folderElement) {
+        // Make folder both draggable (for reordering) and droppable (for nesting)
+        folderElement.addEventListener('dragover', (e) => {
+            // Only accept drops if this isn't the dragged element itself
+            if (e.currentTarget !== draggedEntry) {
+                e.preventDefault();
+                e.stopPropagation();
+                folderElement.classList.add('folder-drag-over');
+            }
+        });
+
+        folderElement.addEventListener('dragleave', (e) => {
+            if (!folderElement.contains(e.relatedTarget)) {
+                folderElement.classList.remove('folder-drag-over');
+            }
+        });
+
+        folderElement.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            folderElement.classList.remove('folder-drag-over');
+
+            if (draggedEntry && draggedEntry !== folderElement) {
+                handleDropOnFolder(draggedEntry, folderElement);
+            }
+        });
+    }
+
+    let draggedEntry = null; // Track currently dragged entry
+
+    function handleDropOnFolder(droppedEntry, folderEntry) {
+        try {
+            // Get folder data
+            const folderContentTextarea = folderEntry.querySelector('textarea[placeholder="Content"]');
+            if (!folderContentTextarea) return;
+
+            const folderData = JSON.parse(folderContentTextarea.value || '{}');
+
+            // Get dropped entry ID
+            const droppedEntryId = getEntryId(droppedEntry);
+
+            // Add to folder's child entries
+            if (!folderData.entries) {
+                folderData.entries = [];
+            }
+
+            if (!folderData.entries.includes(droppedEntryId)) {
+                folderData.entries.push(droppedEntryId);
+            }
+
+            // Update folder data
+            folderContentTextarea.value = JSON.stringify(folderData);
+            folderContentTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+
+            // Visually nest the entry under the folder
+            folderEntry.parentNode.insertBefore(droppedEntry, folderEntry.nextSibling);
+
+            // Add visual indentation to show nesting
+            droppedEntry.style.marginLeft = '20px';
+            droppedEntry.classList.add('folder-child-entry');
+
+            console.log('[World Info Folders] Entry nested under folder');
+        } catch (error) {
+            console.error('[World Info Folders] Error handling drop on folder:', error);
         }
     }
 
@@ -191,7 +337,7 @@
             renderFolders();
 
             // Ensure folder button is present
-            addFolderButtonWithRetry();
+            createFolderEntryWithRetry();
         } catch (error) {
             console.error('[World Info Folders] Error in onWorldInfoLoaded:', error);
         }
@@ -244,110 +390,20 @@
         });
     }
 
-    function addFolderButtonWithRetry(attempts = 0) {
+    function createFolderEntryWithRetry(attempts = 0) {
         const maxAttempts = 50; // Try for 5 seconds
         if (attempts >= maxAttempts) {
             console.warn('[World Info Folders] Could not find World Info UI buttons after', maxAttempts, 'attempts');
             return;
         }
 
-        if (addFolderButton()) {
+        if (reateFolderEntryButton()) {
             console.log('[World Info Folders] Folder button added successfully');
             return;
         }
 
         // Try again after 100ms
-        setTimeout(() => addFolderButtonWithRetry(attempts + 1), 100);
-    }
-
-    function addFolderButton() {
-        try {
-            // Add the folder button between "New Entry" and "Fill empty Memo/Titles" buttons
-            const newEntryButton = document.querySelector('#world_popup_new');
-            const fillMemosButton = document.querySelector('#world_backfill_memos');
-
-            if (!newEntryButton || !fillMemosButton) {
-                return false; // UI not ready yet
-            }
-
-            // Check if button already exists
-            if (document.querySelector('#world_create_folder_button')) {
-                return true; // Already exists
-            }
-
-            // Create the folder button
-            const folderButton = document.createElement('div');
-            folderButton.id = 'world_create_folder_button';
-            folderButton.className = 'menu_button fa-solid fa-folder-plus';
-            folderButton.title = 'Create New Folder';
-            folderButton.setAttribute('data-i18n', '[title]Create New Folder');
-
-            // Add click handler
-            folderButton.addEventListener('click', showCreateFolderDialog);
-
-            // Insert between the new entry button and fill memos button
-            const parentContainer = newEntryButton.parentElement;
-            if (parentContainer) {
-                parentContainer.insertBefore(folderButton, fillMemosButton);
-                return true; // Successfully added
-            }
-
-            return false; // Failed to add
-        } catch (error) {
-            console.error('[World Info Folders] Error in addFolderButton:', error);
-            return false;
-        }
-    }
-
-    function showCreateFolderDialog() {
-        try {
-            const folderName = prompt('Enter folder name:');
-            if (folderName && folderName.trim()) {
-                createFolder(folderName.trim());
-            }
-        } catch (error) {
-            console.error('[World Info Folders] Error in showCreateFolderDialog:', error);
-        }
-    }
-
-    function createFolder(name) {
-        try {
-            const currentWorld = getCurrentWorldName();
-            if (!currentWorld) {
-                if (typeof toastr !== 'undefined' && toastr.error) {
-                    toastr.error('No world selected');
-                }
-                return;
-            }
-
-            // Initialize world folders if not exists
-            if (!settings.folders[currentWorld]) {
-                settings.folders[currentWorld] = {};
-            }
-
-            // Generate unique folder ID
-            const folderId = generateFolderId();
-
-            // Create folder
-            const folder = new WorldInfoFolder(folderId, name, false);
-            settings.folders[currentWorld][folderId] = folder;
-
-            // Save settings
-            saveSettings();
-
-            // Re-render folders
-            renderFolders();
-
-            if (typeof toastr !== 'undefined' && toastr.success) {
-                toastr.success(`Folder "${name}" created`);
-            }
-        } catch (error) {
-            console.error('[World Info Folders] Error in createFolder:', error);
-        }
-    }
-
-    function generateFolderId() {
-        return 'folder_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        setTimeout(() => reateFolderEntryWithRetry(attempts + 1), 100);
     }
 
     function getCurrentWorldName() {
@@ -360,393 +416,6 @@
         } catch (error) {
             console.error('[World Info Folders] Error in getCurrentWorldName:', error);
             return null;
-        }
-    }
-
-    function renderFolders() {
-        try {
-            const currentWorld = getCurrentWorldName();
-            if (!currentWorld || !settings.folders[currentWorld]) {
-                return;
-            }
-
-            const entriesContainer = document.querySelector('#world_popup_entries_list');
-            if (!entriesContainer) {
-                return;
-            }
-
-            // Only create folders that don't already exist
-            const folders = settings.folders[currentWorld];
-            Object.values(folders).forEach(folder => {
-                const existingFolder = document.querySelector(`[data-folder-id="${folder.id}"]`);
-                if (!existingFolder) {
-                    createFolderElement(folder, entriesContainer);
-                }
-            });
-
-            // Only move entries that aren't already in the right place
-            const existingEntries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
-            existingEntries.forEach(entry => {
-                const entryId = getEntryId(entry);
-                const folderId = getFolderForEntry(currentWorld, entryId);
-
-                if (folderId && folders[folderId]) {
-                    const folderElement = document.querySelector(`[data-folder-id="${folderId}"] .folder-entries`);
-                    if (folderElement && !folderElement.contains(entry)) {
-                        // Only move if not already in the correct folder
-                        folderElement.appendChild(entry);
-                    }
-                }
-            });
-
-            // Setup drag and drop only once
-            if (!entriesContainer.hasAttribute('data-drag-setup')) {
-                setupDragAndDrop();
-                entriesContainer.setAttribute('data-drag-setup', 'true');
-            }
-        } catch (error) {
-            console.error('[World Info Folders] Error in renderFolders:', error);
-        }
-    }
-
-    function createFolderElement(folder, container) {
-        try {
-            // Check if folder element already exists
-            let folderElement = document.querySelector(`[data-folder-id="${folder.id}"]`);
-
-            if (!folderElement) {
-                folderElement = document.createElement('div');
-                folderElement.className = 'wi-folder';
-                folderElement.setAttribute('data-folder-id', folder.id);
-                folderElement.draggable = true;
-
-                // Folder header
-                const folderHeader = document.createElement('div');
-                folderHeader.className = 'wi-folder-header';
-
-                // Collapse/expand icon
-                const collapseIcon = document.createElement('i');
-                collapseIcon.className = folder.collapsed ? 'fa-solid fa-chevron-right' : 'fa-solid fa-chevron-down';
-                collapseIcon.addEventListener('click', () => toggleFolder(folder.id));
-
-                // Folder name
-                const folderName = document.createElement('span');
-                folderName.className = 'wi-folder-name';
-                folderName.textContent = folder.name;
-                folderName.addEventListener('dblclick', () => renameFolderDialog(folder.id));
-
-                // Delete button
-                const deleteButton = document.createElement('i');
-                deleteButton.className = 'fa-solid fa-trash-can wi-folder-delete';
-                deleteButton.title = 'Delete Folder';
-                deleteButton.addEventListener('click', () => deleteFolderDialog(folder.id));
-
-                folderHeader.appendChild(collapseIcon);
-                folderHeader.appendChild(folderName);
-                folderHeader.appendChild(deleteButton);
-
-                // Folder entries container
-                const folderEntries = document.createElement('div');
-                folderEntries.className = 'folder-entries';
-                if (folder.collapsed) {
-                    folderEntries.style.display = 'none';
-                }
-
-                folderElement.appendChild(folderHeader);
-                folderElement.appendChild(folderEntries);
-
-                container.appendChild(folderElement);
-            }
-
-            return folderElement;
-        } catch (error) {
-            console.error('[World Info Folders] Error in createFolderElement:', error);
-            return null;
-        }
-    }
-
-    function toggleFolder(folderId) {
-        try {
-            const currentWorld = getCurrentWorldName();
-            if (!currentWorld || !settings.folders[currentWorld] || !settings.folders[currentWorld][folderId]) {
-                return;
-            }
-
-            const folder = settings.folders[currentWorld][folderId];
-            folder.collapsed = !folder.collapsed;
-
-            const folderElement = document.querySelector(`[data-folder-id="${folderId}"]`);
-            if (folderElement) {
-                const collapseIcon = folderElement.querySelector('.wi-folder-header i');
-                const entriesContainer = folderElement.querySelector('.folder-entries');
-
-                if (folder.collapsed) {
-                    collapseIcon.className = 'fa-solid fa-chevron-right';
-                    entriesContainer.style.display = 'none';
-                } else {
-                    collapseIcon.className = 'fa-solid fa-chevron-down';
-                    entriesContainer.style.display = 'block';
-                }
-            }
-
-            saveSettings();
-        } catch (error) {
-            console.error('[World Info Folders] Error in toggleFolder:', error);
-        }
-    }
-
-    function renameFolderDialog(folderId) {
-        try {
-            const currentWorld = getCurrentWorldName();
-            if (!currentWorld || !settings.folders[currentWorld] || !settings.folders[currentWorld][folderId]) {
-                return;
-            }
-
-            const folder = settings.folders[currentWorld][folderId];
-            const newName = prompt('Enter new folder name:', folder.name);
-
-            if (newName && newName.trim() && newName.trim() !== folder.name) {
-                folder.name = newName.trim();
-
-                const folderNameElement = document.querySelector(`[data-folder-id="${folderId}"] .wi-folder-name`);
-                if (folderNameElement) {
-                    folderNameElement.textContent = folder.name;
-                }
-
-                saveSettings();
-                if (typeof toastr !== 'undefined' && toastr.success) {
-                    toastr.success(`Folder renamed to "${folder.name}"`);
-                }
-            }
-        } catch (error) {
-            console.error('[World Info Folders] Error in renameFolderDialog:', error);
-        }
-    }
-
-    function deleteFolderDialog(folderId) {
-        try {
-            const currentWorld = getCurrentWorldName();
-            if (!currentWorld || !settings.folders[currentWorld] || !settings.folders[currentWorld][folderId]) {
-                return;
-            }
-
-            const folder = settings.folders[currentWorld][folderId];
-
-            if (confirm(`Delete folder "${folder.name}"? Entries will be moved back to the main list.`)) {
-                deleteFolder(folderId);
-            }
-        } catch (error) {
-            console.error('[World Info Folders] Error in deleteFolderDialog:', error);
-        }
-    }
-
-    function deleteFolder(folderId) {
-        try {
-            const currentWorld = getCurrentWorldName();
-            if (!currentWorld) return;
-
-            // Move entries back to main container
-            const folderElement = document.querySelector(`[data-folder-id="${folderId}"]`);
-            if (folderElement) {
-                const entriesContainer = document.querySelector('#world_popup_entries_list');
-                const folderEntries = folderElement.querySelectorAll('.world_entry');
-
-                folderEntries.forEach(entry => {
-                    entriesContainer.appendChild(entry);
-                });
-
-                folderElement.remove();
-            }
-
-            // Remove folder from settings
-            if (settings.folders[currentWorld]) {
-                delete settings.folders[currentWorld][folderId];
-            }
-
-            // Remove entry-folder associations
-            if (settings.entryFolders[currentWorld]) {
-                Object.keys(settings.entryFolders[currentWorld]).forEach(entryId => {
-                    if (settings.entryFolders[currentWorld][entryId] === folderId) {
-                        delete settings.entryFolders[currentWorld][entryId];
-                    }
-                });
-            }
-
-            saveSettings();
-            if (typeof toastr !== 'undefined' && toastr.success) {
-                toastr.success('Folder deleted');
-            }
-        } catch (error) {
-            console.error('[World Info Folders] Error in deleteFolder:', error);
-        }
-    }
-
-function setupDragAndDrop() {
-    try {
-        const entriesContainer = document.querySelector('#world_popup_entries_list');
-        if (!entriesContainer) return;
-
-        // Instead of creating our own drag system, intercept ST's existing one
-        interceptSillyTavernDragSystem();
-
-        // Keep visual feedback for folders
-        setupFolderVisualFeedback();
-
-    } catch (error) {
-        console.error('[World Info Folders] Error in setupDragAndDrop:', error);
-    }
-}
-
-    function interceptSillyTavernDragSystem() {
-        const entriesContainer = document.querySelector('#world_popup_entries_list');
-
-        // Use a more comprehensive approach to detect ST's drag operations
-        let draggedEntry = null;
-
-        // Detect when ST starts dragging an entry
-        entriesContainer.addEventListener('dragstart', (e) => {
-            if (e.target.closest('.world_entry')) {
-                draggedEntry = e.target.closest('.world_entry');
-            }
-        }, true);
-
-        // Detect drops on folders with higher priority than ST's handlers
-        entriesContainer.addEventListener('dragover', (e) => {
-            const folder = e.target.closest('.wi-folder');
-            if (folder && draggedEntry) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-        }, true);
-
-        entriesContainer.addEventListener('drop', (e) => {
-            const folder = e.target.closest('.wi-folder');
-
-            if (folder && draggedEntry) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-
-                console.log('[World Info Folders] Intercepted ST drag to folder');
-                handleSTEntryDrop(draggedEntry, folder);
-                draggedEntry = null;
-                return false;
-            }
-
-            draggedEntry = null;
-        }, true);
-
-        // Clean up on drag end
-        entriesContainer.addEventListener('dragend', () => {
-            draggedEntry = null;
-        }, true);
-    }
-
-    function handleSTEntryDrop(entryElement, folderElement) {
-        try {
-            const entryId = getEntryId(entryElement);
-            const folderId = folderElement.getAttribute('data-folder-id');
-            const currentWorld = getCurrentWorldName();
-
-            if (!currentWorld || !entryId || !folderId) return;
-
-            // Move the entry to the folder
-            const folderEntriesContainer = folderElement.querySelector('.folder-entries');
-            if (folderEntriesContainer) {
-                folderEntriesContainer.appendChild(entryElement);
-            }
-
-            // Update settings
-            if (!settings.entryFolders[currentWorld]) {
-                settings.entryFolders[currentWorld] = {};
-            }
-            settings.entryFolders[currentWorld][entryId] = folderId;
-
-            saveSettings();
-            console.log('[World Info Folders] Entry moved to folder via ST drag handle');
-
-            // Reset any ST drag styling
-            entryElement.style.opacity = '';
-            entryElement.classList.remove('dragging');
-
-        } catch (error) {
-            console.error('[World Info Folders] Error in handleSTEntryDrop:', error);
-        }
-    }
-
-    function setupFolderVisualFeedback() {
-        const entriesContainer = document.querySelector('#world_popup_entries_list');
-
-        entriesContainer.addEventListener('dragenter', (e) => {
-            const folder = e.target.closest('.wi-folder');
-            if (folder) {
-                folder.classList.add('drag-over');
-            }
-        });
-
-        entriesContainer.addEventListener('dragleave', (e) => {
-            const folder = e.target.closest('.wi-folder');
-            if (folder && !folder.contains(e.relatedTarget)) {
-                folder.classList.remove('drag-over');
-            }
-        });
-
-        entriesContainer.addEventListener('dragend', () => {
-            // Clean up all drag feedback
-            document.querySelectorAll('.wi-folder.drag-over').forEach(folder => {
-                folder.classList.remove('drag-over');
-            });
-        });
-    }
-
-    function getEntryId(entryElement) {
-        try {
-            // SillyTavern typically uses data-uid or has a hidden input with the UID
-            const uidInput = entryElement.querySelector('input[name="uid"]');
-            if (uidInput && uidInput.value) {
-                return uidInput.value;
-            }
-
-            // Try other common patterns
-            const dataUid = entryElement.getAttribute('data-uid') ||
-                        entryElement.querySelector('[data-uid]')?.getAttribute('data-uid');
-            if (dataUid) {
-                return dataUid;
-            }
-
-            // Fallback - use element index as stable ID
-            const container = document.querySelector('#world_popup_entries_list');
-            const allEntries = Array.from(container.querySelectorAll('.world_entry'));
-            const index = allEntries.indexOf(entryElement);
-            return `entry_${index}`;
-        } catch (error) {
-            console.error('[World Info Folders] Error in getEntryId:', error);
-            return `fallback_${Math.random().toString(36).substr(2, 9)}`;
-        }
-    }
-
-    function getFolderForEntry(worldName, entryId) {
-        try {
-            return settings.entryFolders[worldName]?.[entryId] || null;
-        } catch (error) {
-            console.error('[World Info Folders] Error in getFolderForEntry:', error);
-            return null;
-        }
-    }
-
-    function saveSettings() {
-        try {
-            // Save to extension settings as backup
-            if (typeof extension_settings !== 'undefined') {
-                extension_settings[MODULE_NAME] = settings;
-            }
-            if (typeof saveSettingsDebounced === 'function') {
-                saveSettingsDebounced();
-            }
-
-            // ALSO save directly to world info for persistence
-            saveToWorldInfo();
-        } catch (error) {
-            console.error('[World Info Folders] Error in saveSettings:', error);
         }
     }
 

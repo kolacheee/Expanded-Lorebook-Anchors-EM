@@ -1,114 +1,48 @@
 /* World Info Folders Extension Styles */
 
-.wi-folder {
-    border: 1px solid var(--SmartThemeBorderColor);
+.wi-folder-entry {
+    background: var(--SmartThemeBlurTintColor);
+    border: 2px solid var(--SmartThemeBorderColor);
     border-radius: 8px;
-    margin: 5px 0;
-    background-color: var(--black10a);
-    transition: all 0.2s ease;
+    margin: 8px 0;
 }
 
-.wi-folder:hover {
-    border-color: var(--SmartThemeQuoteColor);
-    box-shadow: 0 2px 4px var(--black30a);
-}
-
-.wi-folder-header {
+.folder-display-header {
     display: flex;
     align-items: center;
-    padding: 8px 12px;
-    background-color: var(--black20a);
-    border-radius: 7px 7px 0 0;
-    cursor: pointer;
-    user-select: none;
     gap: 8px;
-}
-
-.wi-folder-header:hover {
-    background-color: var(--black30a);
-}
-
-.wi-folder-header i:first-child {
-    color: var(--grey70);
+    padding: 8px;
+    background: var(--SmartThemeQuoteColor);
+    border-radius: 6px 6px 0 0;
     cursor: pointer;
-    transition: transform 0.2s ease;
-    width: 16px;
+}
+
+.folder-collapse-icon, .folder-icon {
+    color: var(--SmartThemeBodyColor);
+}
+
+.folder-name-display {
+    font-weight: bold;
+    flex-grow: 1;
+}
+
+.folder-drop-zone {
+    padding: 20px;
     text-align: center;
-}
-
-.wi-folder-header i:first-child:hover {
     color: var(--SmartThemeBodyColor);
-}
-
-.wi-folder-name {
-    flex: 1;
-    font-weight: 500;
-    color: var(--SmartThemeBodyColor);
-    cursor: text;
-}
-
-.wi-folder-name:hover {
-    color: var(--SmartThemeQuoteColor);
-}
-
-.wi-folder-delete {
-    color: var(--grey70);
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.2s ease, color 0.2s ease;
-    padding: 4px;
+    border: 2px dashed transparent;
+    margin: 8px;
     border-radius: 4px;
 }
 
-.wi-folder-header:hover .wi-folder-delete {
-    opacity: 1;
+.folder-drag-over .folder-drop-zone {
+    border-color: var(--SmartThemeBodyColor);
+    background: rgba(0, 255, 0, 0.1);
 }
 
-.wi-folder-delete:hover {
-    color: #ff6b6b;
-    background-color: var(--black20a);
-}
-
-.folder-entries {
-    padding: 8px;
-    min-height: 20px;
-    border-radius: 0 0 7px 7px;
-}
-
-.folder-entries:empty {
-    border: 2px dashed var(--SmartThemeBorderColor);
-    background-color: var(--black10a);
-    color: var(--grey70);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 40px;
-    font-style: italic;
-}
-
-.folder-entries:empty::before {
-    content: "Drop entries here...";
-}
-
-.folder-entries:empty.drag-over {
-    border-color: var(--SmartThemeQuoteColor);
-    background-color: var(--SmartThemeQuoteColor15);
-}
-
-/* Drag and drop states */
-.wi-folder.drag-over {
-    border-color: var(--SmartThemeQuoteColor);
-    background-color: var(--SmartThemeQuoteColor15);
-}
-
-.world_entry.dragging {
-    opacity: 0.5;
-    transform: rotate(2deg);
-}
-
-.wi-folder.dragging {
-    opacity: 0.7;
-    transform: scale(0.95);
+.folder-child-entry {
+    margin-left: 20px !important;
+    border-left: 3px solid var(--SmartThemeBorderColor);
 }
 
 /* Folder button styling */
