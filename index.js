@@ -468,17 +468,22 @@
                 } catch (error) {
                     console.error('[World Info Folders] Error in drop handler:', error);
                 }
+                    document.querySelectorAll('.wi-folder.drag-over').forEach(folder => {
+                        folder.classList.remove('drag-over');
+                    });
             });
 
             entriesContainer.addEventListener('dragenter', (e) => {
-                if (e.target.classList.contains('folder-entries')) {
-                    e.target.classList.add('drop-zone-active');
+                const folder = e.target.closest('.wi-folder');
+                if (folder) {
+                    folder.classList.add('drag-over');
                 }
             });
 
             entriesContainer.addEventListener('dragleave', (e) => {
-                if (e.target.classList.contains('folder-entries')) {
-                    e.target.classList.remove('drop-zone-active');
+                const folder = e.target.closest('.wi-folder');
+                if (folder && !folder.contains(e.relatedTarget)) {
+                    folder.classList.remove('drag-over');
                 }
             });
 
@@ -493,18 +498,23 @@
             const dropTarget = e.target;
             let targetFolderId = null;
 
-            // Check if dropping directly on folder entries container
+            // Check multiple drop target possibilities
             if (dropTarget.classList.contains('folder-entries')) {
+                // Dropped directly on entries container
                 const folderElement = dropTarget.closest('.wi-folder');
                 targetFolderId = folderElement?.getAttribute('data-folder-id');
             }
-            // Check if dropping on main container (to remove from folder)
-            else if (dropTarget.id === 'world_popup_entries_list') {
+            else if (dropTarget.closest('.wi-folder')) {
+                // Dropped anywhere on folder (header, name, etc.)
+                const folderElement = dropTarget.closest('.wi-folder');
+                targetFolderId = folderElement?.getAttribute('data-folder-id');
+            }
+            else if (dropTarget.id === 'world_popup_entries_list' || dropTarget.closest('#world_popup_entries_list')) {
+                // Dropped on main container
                 targetFolderId = null; // Remove from folder
             }
-            // Invalid drop target
             else {
-                console.log('[World Info Folders] Invalid drop target');
+                console.log('[World Info Folders] Invalid drop target:', dropTarget);
                 return;
             }
 
