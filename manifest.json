@@ -1,10 +1,12 @@
 {
   "display_name": "World Info Folders",
-  "version": "1.0.0",
+  "loading_order": 50,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
   "author": "Roo",
-  "description": "Adds collapsible and draggable folders to the World Info tab.",
-  "loading_order": 10,
-  "script": "index.js",
-  "style": "style.css"
-
+  "version": "1.0.0",
+  "homePage": "",
+  "description": "Adds collapsible and draggable folders to organize World Info entries."
 }

@@ -1,39 +1,74 @@
 # World Info Folders Extension
 
-This extension enhances the World Info tab in SillyTavern by adding collapsible and draggable folders, allowing for better organization of your lorebook entries.
+This extension adds collapsible and draggable folders to the World Info tab in SillyTavern, allowing you to organize your lorebook entries more effectively.
 
 ## Features
 
-- **Create Folders:** Add new folders to categorize your World Info entries.
-- **Collapsible:** Expand or collapse folders to keep your workspace tidy.
-- **Nameable:** Click on a folder's name to edit and rename it.
-- **Draggable:** Drag and drop folders and entries to reorder them or move entries into folders.
+- **Create Folders**: Add new folders to categorize your World Info entries
+- **Collapsible**: Click folder headers to expand/collapse content
+- **Rename Folders**: Click on folder names to edit them inline
+- **Drag & Drop**: Drag World Info entries into folders or reorder folders and entries
+- **Visual Feedback**: Clear visual indicators for drag operations and empty folders
 
 ## Installation
 
-1.  Place the `world-info-folders` directory into your `SillyTavern/public/scripts/extensions/third-party/` directory.
-2.  Restart SillyTavern.
-3.  The extension will be active automatically.
+1. Download or clone this extension
+2. Place the `world-info-folders` directory in your SillyTavern installation at:
+   ```
+   SillyTavern/public/scripts/extensions/third-party/world-info-folders/
+   ```
+3. Restart SillyTavern
+4. The extension will automatically load when you visit the World Info tab
 
 ## How to Use
 
 ### Creating a New Folder
 
-1.  Navigate to the **World Info** tab.
-2.  Next to the "New Entry" button, you will see a new folder icon. Click this icon to create a new folder.
-3.  A new folder named "New Folder" will appear at the top of your World Info list.
+1. Navigate to the **World Info** tab
+2. Look for the folder icon button next to the "New Entry" button
+3. Click the folder icon to create a new folder
+4. The folder will appear with the name "New Folder" selected for editing
 
-### Renaming a Folder
+### Renaming Folders
 
-1.  Click directly on the "New Folder" text in the folder's header.
-2.  The text will become editable. Type your desired name and press Enter or click away to save.
+1. Click directly on the folder name in the header
+2. Type your desired name
+3. Press Enter or click elsewhere to save the name
 
-### Organizing Entries and Folders
+### Organizing Entries
 
--   **Collapsing/Expanding:** Click anywhere on the folder header (except the name itself when editing) to toggle its content visibility.
--   **Moving Entries into Folders:** Drag any World Info entry and drop it inside an open folder.
--   **Reordering:** Both folders and individual entries can be dragged and dropped to change their order in the list.
+- **Expanding/Collapsing**: Click anywhere on the folder header (except the name) to toggle visibility
+- **Moving Entries**: Drag any World Info entry and drop it into an open folder
+- **Reordering**: Drag folders and entries to reorder them in the list
+- **Visual Cues**: Empty folders show "Drag world info entries here" as a hint
 
-## Styling
+### Managing Folders
 
-The folder icon color is designed to match your SillyTavern's "Main Text" color automatically. Other styles are designed to be consistent with the default SillyTavern UI.
+- Folders can be dragged to reorder them among other folders and entries
+- Folders remember their open/closed state during the session
+- Empty folders provide visual feedback when dragging entries
+
+## Technical Details
+
+- Uses SillyTavern's existing Sortable.js library for drag-and-drop functionality
+- Integrates seamlessly with the existing World Info system
+- Follows SillyTavern's styling conventions and color schemes
+- No external dependencies required
+
+## Compatibility
+
+- Compatible with SillyTavern's current World Info system
+- Works with existing World Info entries without modification
+- Respects SillyTavern's theming system
+
+## Troubleshooting
+
+If the folder button doesn't appear:
+1. Check the browser console for error messages
+2. Ensure the extension files are in the correct directory
+3. Restart SillyTavern completely
+4. Verify that JavaScript is enabled in your browser
+
+## Support
+
+This extension was created to enhance the World Info organization experience in SillyTavern. For issues or feature requests, please refer to the SillyTavern community resources.

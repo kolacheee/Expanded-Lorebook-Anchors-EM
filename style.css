@@ -1,32 +1,140 @@
+/* New Folder Button */
 #world_info_new_folder {
-    mask-image: url('/img/folder.svg');
-    background-color: var(--main-text);
-    width: 24px;
-    height: 24px;
+    background: var(--main-text);
+    color: var(--main-text);
+    mask: url('/img/folder.svg') no-repeat center;
+    mask-size: contain;
+    -webkit-mask: url('/img/folder.svg') no-repeat center;
+    -webkit-mask-size: contain;
+    width: 20px;
+    height: 20px;
     cursor: pointer;
     display: inline-block;
-    margin-left: 10px;
+    margin-left: 5px;
+    vertical-align: middle;
 }
 
+#world_info_new_folder:hover {
+    opacity: 0.7;
+}
+
+/* Folder Styling */
 .world-info-folder {
     border: 1px solid var(--border-color);
-    border-radius: 5px;
-    margin-bottom: 5px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    background: var(--secondary-bg);
+    overflow: hidden;
 }
 
 .world-info-folder-header {
-    padding: 5px;
-    background-color: var(--secondary-bg);
+    padding: 8px 12px;
+    background: var(--tertiary-bg);
+    border-bottom: 1px solid var(--border-color);
     cursor: pointer;
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+.world-info-folder-header:hover {
+    background: var(--hover-bg);
+}
+
+.world-info-folder-name {
+    font-weight: 500;
+    color: var(--main-text);
+    outline: none;
+    border: none;
+    background: transparent;
+    flex: 1;
+}
+
+.world-info-folder-name:focus {
+    background: var(--input-bg);
+    border: 1px solid var(--accent-color);
+    border-radius: 2px;
+    padding: 2px 4px;
+}
+
+.world-info-folder-toggle {
+    color: var(--main-text);
+    font-size: 12px;
+    transition: transform 0.2s ease;
+    margin-left: 8px;
+}
+
+.world-info-folder.open .world-info-folder-toggle {
+    transform: rotate(0deg);
+}
+
+.world-info-folder:not(.open) .world-info-folder-toggle {
+    transform: rotate(-90deg);
 }
 
 .world-info-folder-content {
-    padding: 5px;
-    display: none; /* Hidden by default */
+    padding: 8px;
+    background: var(--secondary-bg);
+    min-height: 40px;
+    border: 2px dashed transparent;
+    transition: border-color 0.2s ease;
+}
+
+.world-info-folder:not(.open) .world-info-folder-content {
+    display: none;
 }
 
 .world-info-folder.open .world-info-folder-content {
     display: block;
+}
+
+/* Drag and Drop Styling */
+.sortable-ghost {
+    opacity: 0.4;
+}
+
+.sortable-chosen {
+    opacity: 0.8;
+}
+
+.sortable-drag {
+    transform: rotate(5deg);
+}
+
+.world-info-folder-content.sortable-over {
+    border-color: var(--accent-color);
+    background: var(--hover-bg);
+}
+
+body.dragging .world-info-folder-content {
+    border-style: dashed;
+    border-width: 2px;
+}
+
+body.dragging .world-info-folder-content:empty::after {
+    content: "Drop items here";
+    color: var(--secondary-text);
+    font-style: italic;
+    text-align: center;
+    display: block;
+    padding: 20px;
+}
+
+/* Ensure proper spacing for world info entries inside folders */
+.world-info-folder-content .world_info_entry {
+    margin: 4px 0;
+}
+
+.world-info-folder-content:empty {
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--secondary-text);
+    font-style: italic;
+}
+
+.world-info-folder-content:empty::after {
+    content: "Drag world info entries here";
 }
