@@ -1,252 +1,212 @@
 /* World Info Folders Extension Styles */
 
-.folder-button {
-    display: inline-flex !important;
-    align-items: center;
-    gap: 5px;
-    margin: 0 5px;
-    padding: 8px 12px;
-    background: var(--grey70, #4a4a4a);
-    border: 1px solid var(--grey60, #5a5a5a);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 13px;
-    color: var(--main-text-color, #ffffff);
-    white-space: nowrap;
-}
-
-.folder-button:hover {
-    background: var(--grey60, #5a5a5a);
-    border-color: var(--grey50, #6a6a6a);
-}
-
-.folder-icon {
-    width: 16px;
-    height: 16px;
-    fill: currentColor;
-}
-
-/* Ensure the SVG icon uses currentColor */
-.folder-icon svg,
-.folder-icon-small svg {
-    fill: currentColor;
-}
-
-.world-info-folder {
-    margin-bottom: 8px;
-    border: 1px solid var(--grey60);
+.wi-folder {
+    border: 1px solid var(--SmartThemeBorderColor);
     border-radius: 8px;
-    background: var(--grey90);
-    overflow: hidden;
+    margin: 5px 0;
+    background-color: var(--black10a);
+    transition: all 0.2s ease;
 }
 
-.folder-header {
+.wi-folder:hover {
+    border-color: var(--SmartThemeQuoteColor);
+    box-shadow: 0 2px 4px var(--black30a);
+}
+
+.wi-folder-header {
     display: flex;
     align-items: center;
-    padding: 10px 12px;
-    background: var(--grey80);
-    border-bottom: 1px solid var(--grey60);
+    padding: 8px 12px;
+    background-color: var(--black20a);
+    border-radius: 7px 7px 0 0;
     cursor: pointer;
     user-select: none;
     gap: 8px;
 }
 
-.folder-header:hover {
-    background: var(--grey70);
+.wi-folder-header:hover {
+    background-color: var(--black30a);
 }
 
-.folder-toggle {
-    width: 16px;
-    height: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.wi-folder-header i:first-child {
+    color: var(--grey70);
     cursor: pointer;
     transition: transform 0.2s ease;
-    color: var(--main-text-color);
+    width: 16px;
+    text-align: center;
 }
 
-.folder-toggle.collapsed {
-    transform: rotate(-90deg);
+.wi-folder-header i:first-child:hover {
+    color: var(--SmartThemeBodyColor);
 }
 
-.folder-icon-small {
-    width: 18px;
-    height: 18px;
-    filter: brightness(0) saturate(100%) invert(var(--main-text-color-invert, 0));
-}
-
-.folder-name {
+.wi-folder-name {
     flex: 1;
-    font-weight: 600;
-    color: var(--main-text-color);
-    font-size: 14px;
-    outline: none;
-    padding: 2px 4px;
-    border-radius: 3px;
-    background: transparent;
-    transition: background 0.2s ease;
+    font-weight: 500;
+    color: var(--SmartThemeBodyColor);
+    cursor: text;
 }
 
-.folder-name:focus {
-    background: var(--grey70);
+.wi-folder-name:hover {
+    color: var(--SmartThemeQuoteColor);
 }
 
-.folder-actions {
-    display: flex;
-    gap: 4px;
+.wi-folder-delete {
+    color: var(--grey70);
+    cursor: pointer;
     opacity: 0;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.2s ease, color 0.2s ease;
+    padding: 4px;
+    border-radius: 4px;
 }
 
-.folder-header:hover .folder-actions {
+.wi-folder-header:hover .wi-folder-delete {
     opacity: 1;
 }
 
-.folder-delete {
-    width: 20px;
-    height: 20px;
-    border: none;
-    background: transparent;
-    color: var(--main-text-color);
-    cursor: pointer;
-    border-radius: 3px;
+.wi-folder-delete:hover {
+    color: #ff6b6b;
+    background-color: var(--black20a);
+}
+
+.folder-entries {
+    padding: 8px;
+    min-height: 20px;
+    border-radius: 0 0 7px 7px;
+}
+
+.folder-entries:empty {
+    border: 2px dashed var(--SmartThemeBorderColor);
+    background-color: var(--black10a);
+    color: var(--grey70);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
-    font-weight: bold;
-    transition: all 0.2s ease;
-}
-
-.folder-delete:hover {
-    background: var(--red);
-    color: white;
-}
-
-.folder-content {
     min-height: 40px;
-    padding: 8px;
-    transition: all 0.3s ease;
-    overflow: hidden;
-}
-
-.folder-content.collapsed {
-    height: 0 !important;
-    min-height: 0;
-    padding: 0 8px;
-}
-
-.folder-drop-zone {
-    text-align: center;
-    padding: 20px;
-    color: var(--grey40);
     font-style: italic;
-    border: 2px dashed var(--grey60);
-    border-radius: 6px;
-    transition: all 0.2s ease;
 }
 
-.folder-content.drag-over .folder-drop-zone {
-    border-color: var(--main-text-color);
-    background: var(--grey80);
-    color: var(--main-text-color);
+.folder-entries:empty::before {
+    content: "Drop entries here...";
 }
 
-.folder-content .world_entry {
-    margin-bottom: 6px;
+.folder-entries:empty.drag-over {
+    border-color: var(--SmartThemeQuoteColor);
+    background-color: var(--SmartThemeQuoteColor15);
 }
 
-.folder-content .world_entry:last-child {
-    margin-bottom: 0;
+/* Drag and drop states */
+.wi-folder.drag-over {
+    border-color: var(--SmartThemeQuoteColor);
+    background-color: var(--SmartThemeQuoteColor15);
 }
 
-/* Hide drop zone when folder has entries */
-.folder-content:has(.world_entry) .folder-drop-zone {
-    display: none;
-}
-
-/* Dragging states */
 .world_entry.dragging {
     opacity: 0.5;
     transform: rotate(2deg);
 }
 
-.world-info-folder.dragging {
+.wi-folder.dragging {
     opacity: 0.7;
-    transform: scale(0.98);
+    transform: scale(0.95);
 }
 
-/* Responsive adjustments */
+/* Folder button styling */
+#world_create_folder_button {
+    color: var(--SmartThemeBodyColor);
+    transition: all 0.2s ease;
+}
+
+#world_create_folder_button:hover {
+    color: var(--SmartThemeQuoteColor);
+    background-color: var(--black20a);
+}
+
+/* Enhance existing world entry styling when in folders */
+.folder-entries .world_entry {
+    margin: 3px 0;
+    border-left: 3px solid transparent;
+    transition: border-color 0.2s ease;
+}
+
+.folder-entries .world_entry:hover {
+    border-left-color: var(--SmartThemeQuoteColor);
+}
+
+/* Collapsed folder styles */
+.wi-folder.collapsed .folder-entries {
+    display: none;
+}
+
+.wi-folder.collapsed .wi-folder-header i:first-child {
+    transform: rotate(-90deg);
+}
+
+/* Drag preview */
+.drag-preview {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    background: var(--SmartThemeBodyColor);
+    color: var(--SmartThemeEmColor);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0.9;
+    transform: translate(-50%, -50%);
+}
+
+/* Mobile responsive */
 @media (max-width: 768px) {
-    .folder-button span {
-        display: none;
+    .wi-folder-header {
+        padding: 6px 10px;
+        gap: 6px;
     }
-    
-    .folder-button {
-        padding: 8px;
-        min-width: auto;
+
+    .wi-folder-name {
+        font-size: 14px;
     }
-    
-    .folder-header {
-        padding: 8px 10px;
-    }
-    
-    .folder-name {
-        font-size: 13px;
+
+    .folder-entries {
+        padding: 6px;
     }
 }
 
-/* Dark theme adjustments */
-@media (prefers-color-scheme: dark) {
-    .folder-icon {
-        filter: brightness(0) saturate(100%) invert(1);
-    }
-    
-    .folder-icon-small {
-        filter: brightness(0) saturate(100%) invert(1);
-    }
+/* Animation for folder expansion/collapse */
+.folder-entries {
+    overflow: hidden;
+    transition: max-height 0.3s ease;
 }
 
-/* Light theme adjustments */
-@media (prefers-color-scheme: light) {
-    .folder-icon {
-        filter: brightness(0) saturate(100%) invert(0);
-    }
-    
-    .folder-icon-small {
-        filter: brightness(0) saturate(100%) invert(0);
-    }
+/* Drop zone highlighting */
+.drop-zone-active {
+    background-color: var(--SmartThemeQuoteColor15) !important;
+    border: 2px dashed var(--SmartThemeQuoteColor) !important;
 }
 
-/* Animation for folder expand/collapse */
-@keyframes expandFolder {
-    from {
-        height: 0;
-        opacity: 0;
-    }
-    to {
-        height: auto;
-        opacity: 1;
-    }
+/* Ensure proper z-index for dragged elements */
+.world_entry[draggable="true"]:hover,
+.wi-folder[draggable="true"]:hover {
+    cursor: grab;
 }
 
-@keyframes collapseFolder {
-    from {
-        height: auto;
-        opacity: 1;
-    }
-    to {
-        height: 0;
-        opacity: 0;
-    }
+.world_entry[draggable="true"]:active,
+.wi-folder[draggable="true"]:active {
+    cursor: grabbing;
 }
 
-.folder-content:not(.collapsed) {
-    animation: expandFolder 0.3s ease-out;
+/* Folder counter badge */
+.wi-folder-counter {
+    background-color: var(--SmartThemeQuoteColor);
+    color: var(--SmartThemeEmColor);
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    margin-left: auto;
+    margin-right: 8px;
 }
 
-.folder-content.collapsed {
-    animation: collapseFolder 0.3s ease-out;
+/* Empty state styling */
+.wi-folder:has(.folder-entries:empty) .wi-folder-counter {
+    background-color: var(--grey70);
 }
