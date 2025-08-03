@@ -1,437 +1,677 @@
-import { event_types, eventSource } from '../../events.js';
-import { saveSettingsDebounced } from '../../script.js';
-import { extension_settings } from '../../extensions.js';
+import { ensureImageFormatSupported, getBase64Async, getFileExtension, isTrueBoolean, saveBase64AsFile } from '../../utils.js';
+import { getContext, getApiUrl, doExtrasFetch, extension_settings, modules, renderExtensionTemplateAsync } from '../../extensions.js';
+import { appendMediaToMessage, eventSource, event_types, getRequestHeaders, saveChatConditional, saveSettingsDebounced, substituteParamsExtended } from '../../../script.js';
+import { getMessageTimeStamp } from '../../RossAscends-mods.js';
+import { SECRET_KEYS, secret_state } from '../../secrets.js';
+import { getMultimodalCaption } from '../shared.js';
+import { textgen_types, textgenerationwebui_settings } from '../../textgen-settings.js';
+import { SlashCommandParser } from '../../slash-commands/SlashCommandParser.js';
+import { SlashCommand } from '../../slash-commands/SlashCommand.js';
+import { ARGUMENT_TYPE, SlashCommandArgument, SlashCommandNamedArgument } from '../../slash-commands/SlashCommandArgument.js';
+import { commonEnumProviders } from '../../slash-commands/SlashCommandCommonEnumsProvider.js';
+import { callGenericPopup, Popup, POPUP_TYPE } from '../../popup.js';
+export { MODULE_NAME };
 
-const MODULE_NAME = 'world-info-folders';
+const MODULE_NAME = 'caption';
 
-// Default settings
-const defaultSettings = {
-    folders: {},
-    entryFolders: {},
-    folderStates: {}
-};
+const PROMPT_DEFAULT = 'What\'s in this image?';
+const TEMPLATE_DEFAULT = '[{{user}} sends {{char}} a picture that contains: {{caption}}]';
 
-let settings = defaultSettings;
+/**
+ * Migrates old extension settings to the new format.
+ * Must keep this function for compatibility with old settings.
+ */
+function migrateSettings() {
+    if (extension_settings.caption.local !== undefined) {
+        extension_settings.caption.source = extension_settings.caption.local ? 'local' : 'extras';
+    }
 
-// Folder data structure
-class WorldInfoFolder {
-    constructor(id, name, collapsed = false) {
-        this.id = id;
-        this.name = name;
-        this.collapsed = collapsed;
-        this.entries = [];
+    delete extension_settings.caption.local;
+
+    if (!extension_settings.caption.source) {
+        extension_settings.caption.source = 'extras';
+    }
+
+    if (extension_settings.caption.source === 'openai') {
+        extension_settings.caption.source = 'multimodal';
+        extension_settings.caption.multimodal_api = 'openai';
+        extension_settings.caption.multimodal_model = 'gpt-4-turbo';
+    }
+
+    if (!extension_settings.caption.multimodal_api) {
+        extension_settings.caption.multimodal_api = 'openai';
+    }
+
+    if (!extension_settings.caption.multimodal_model) {
+        extension_settings.caption.multimodal_model = 'gpt-4-turbo';
+    }
+
+    if (!extension_settings.caption.prompt) {
+        extension_settings.caption.prompt = PROMPT_DEFAULT;
+    }
+
+    if (!extension_settings.caption.template) {
+        extension_settings.caption.template = TEMPLATE_DEFAULT;
+    }
+
+    if (!extension_settings.caption.show_in_chat) {
+        extension_settings.caption.show_in_chat = false;
     }
 }
 
-// Initialize extension
-function init() {
-    // Load settings
-    settings = extension_settings[MODULE_NAME] || defaultSettings;
-    extension_settings[MODULE_NAME] = settings;
-
-    // Wait for World Info UI to be ready
-    eventSource.on(event_types.WORLDINFO_ENTRIES_LOADED, onWorldInfoLoaded);
-
-    // Add folder button to World Info UI
-    addFolderButton();
-
-    console.log('[World Info Folders] Extension initialized');
+/**
+ * Sets an image icon for the send button.
+ */
+async function setImageIcon() {
+    try {
+        const sendButton = $('#send_picture .extensionsMenuExtensionButton');
+        sendButton.addClass('fa-image');
+        sendButton.removeClass('fa-hourglass-half');
+    }
+    catch (error) {
+        console.log(error);
+    }
 }
 
-function onWorldInfoLoaded() {
-    // Re-render folders when World Info is reloaded
-    renderFolders();
+/**
+ * Sets a spinner icon for the send button.
+ */
+async function setSpinnerIcon() {
+    try {
+        const sendButton = $('#send_picture .extensionsMenuExtensionButton');
+        sendButton.removeClass('fa-image');
+        sendButton.addClass('fa-hourglass-half');
+    }
+    catch (error) {
+        console.log(error);
+    }
 }
 
-function addFolderButton() {
-    // Add the folder button between "New Entry" and "Fill empty Memo/Titles" buttons
-    const targetContainer = document.querySelector('#world_popup_new_entry')?.parentElement;
-    if (!targetContainer) {
-        // Try again after a delay if the UI isn't ready yet
-        setTimeout(addFolderButton, 100);
+/**
+ * Wraps a caption with a message template.
+ * @param {string} caption Raw caption
+ * @returns {Promise<string>} Wrapped caption
+ */
+async function wrapCaptionTemplate(caption) {
+    let template = extension_settings.caption.template || TEMPLATE_DEFAULT;
+
+    if (!/{{caption}}/i.test(template)) {
+        console.warn('Poka-yoke: Caption template does not contain {{caption}}. Appending it.');
+        template += ' {{caption}}';
+    }
+
+    let messageText = substituteParamsExtended(template, { caption: caption });
+
+    if (extension_settings.caption.refine_mode) {
+        messageText = await Popup.show.input(
+            'Review and edit the generated caption:',
+            'Press "Cancel" to abort the caption sending.',
+            messageText,
+            { rows: 5, okButton: 'Send' });
+
+        if (!messageText) {
+            throw new Error('User aborted the caption sending.');
+        }
+    }
+
+    return messageText;
+}
+
+/**
+ * Appends caption to an existing message.
+ * @param {Object} data Message data
+ * @returns {Promise<void>}
+ */
+async function captionExistingMessage(data) {
+    if (!(data?.extra?.image)) {
         return;
     }
 
-    // Check if button already exists
-    if (document.querySelector('#world_create_folder_button')) {
+    const imageData = await fetch(data.extra.image);
+    const blob = await imageData.blob();
+    const type = imageData.headers.get('Content-Type');
+    const file = new File([blob], 'image.png', { type });
+    const caption = await getCaptionForFile(file, null, true);
+
+    if (!caption) {
+        console.warn('Failed to generate a caption for the image.');
         return;
     }
 
-    // Create the folder button
-    const folderButton = document.createElement('div');
-    folderButton.id = 'world_create_folder_button';
-    folderButton.className = 'menu_button fa-solid fa-folder-plus';
-    folderButton.title = 'Create New Folder';
-    folderButton.setAttribute('data-i18n', '[title]Create New Folder');
+    const wrappedCaption = await wrapCaptionTemplate(caption);
 
-    // Add click handler
-    folderButton.addEventListener('click', showCreateFolderDialog);
+    const messageText = String(data.mes).trim();
 
-    // Insert after the new entry button
-    const newEntryButton = document.querySelector('#world_popup_new_entry');
-    if (newEntryButton && newEntryButton.parentElement) {
-        newEntryButton.parentElement.insertBefore(folderButton, newEntryButton.nextSibling);
+    if (!messageText) {
+        data.extra.inline_image = false;
+        data.mes = wrappedCaption;
+        data.extra.title = wrappedCaption;
+    }
+    else {
+        data.extra.inline_image = true;
+        data.extra.append_title = true;
+        data.extra.title = wrappedCaption;
     }
 }
 
-function showCreateFolderDialog() {
-    const folderName = prompt('Enter folder name:');
-    if (folderName && folderName.trim()) {
-        createFolder(folderName.trim());
+/**
+ * Sends a captioned message to the chat.
+ * @param {string} caption Caption text
+ * @param {string} image Image URL
+ */
+async function sendCaptionedMessage(caption, image) {
+    const messageText = await wrapCaptionTemplate(caption);
+
+    const context = getContext();
+    const message = {
+        name: context.name1,
+        is_user: true,
+        send_date: getMessageTimeStamp(),
+        mes: messageText,
+        extra: {
+            image: image,
+            title: messageText,
+            inline_image: !!extension_settings.caption.show_in_chat,
+        },
+    };
+    context.chat.push(message);
+    const messageId = context.chat.length - 1;
+    await eventSource.emit(event_types.MESSAGE_SENT, messageId);
+    context.addOneMessage(message);
+    await eventSource.emit(event_types.USER_MESSAGE_RENDERED, messageId);
+    await context.saveChat();
+}
+
+/**
+ * Generates a caption for an image using a selected source.
+ * @param {string} base64Img Base64 encoded image without the data:image/...;base64, prefix
+ * @param {string} fileData Base64 encoded image with the data:image/...;base64, prefix
+ * @param {string} externalPrompt Caption prompt
+ * @returns {Promise<{caption: string}>} Generated caption
+ */
+async function doCaptionRequest(base64Img, fileData, externalPrompt) {
+    switch (extension_settings.caption.source) {
+        case 'local':
+            return await captionLocal(base64Img);
+        case 'extras':
+            return await captionExtras(base64Img);
+        case 'horde':
+            return await captionHorde(base64Img);
+        case 'multimodal':
+            return await captionMultimodal(fileData, externalPrompt);
+        default:
+            throw new Error('Unknown caption source.');
     }
 }
 
-function createFolder(name) {
-    const currentWorld = getCurrentWorldName();
-    if (!currentWorld) {
-        toastr.error('No world selected');
-        return;
+/**
+ * Generates a caption for an image using Extras API.
+ * @param {string} base64Img Base64 encoded image without the data:image/...;base64, prefix
+ * @returns {Promise<{caption: string}>} Generated caption
+ */
+async function captionExtras(base64Img) {
+    if (!modules.includes('caption')) {
+        throw new Error('No captioning module is available.');
     }
 
-    // Initialize world folders if not exists
-    if (!settings.folders[currentWorld]) {
-        settings.folders[currentWorld] = {};
-    }
+    const url = new URL(getApiUrl());
+    url.pathname = '/api/caption';
 
-    // Generate unique folder ID
-    const folderId = generateFolderId();
-
-    // Create folder
-    const folder = new WorldInfoFolder(folderId, name, false);
-    settings.folders[currentWorld][folderId] = folder;
-
-    // Save settings
-    saveSettings();
-
-    // Re-render folders
-    renderFolders();
-
-    toastr.success(`Folder "${name}" created`);
-}
-
-function generateFolderId() {
-    return 'folder_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-}
-
-function getCurrentWorldName() {
-    const worldSelect = document.querySelector('#world_editor_select');
-    if (!worldSelect || worldSelect.selectedIndex <= 0) {
-        return null;
-    }
-    return worldSelect.options[worldSelect.selectedIndex].text;
-}
-
-function renderFolders() {
-    const currentWorld = getCurrentWorldName();
-    if (!currentWorld || !settings.folders[currentWorld]) {
-        return;
-    }
-
-    const entriesContainer = document.querySelector('#world_popup_entries_list');
-    if (!entriesContainer) {
-        return;
-    }
-
-    // Get all existing entry elements
-    const existingEntries = Array.from(entriesContainer.querySelectorAll('.world_entry'));
-
-    // Create folder containers
-    const folders = settings.folders[currentWorld];
-    Object.values(folders).forEach(folder => {
-        createFolderElement(folder, entriesContainer);
+    const apiResult = await doExtrasFetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Bypass-Tunnel-Reminder': 'bypass',
+        },
+        body: JSON.stringify({ image: base64Img }),
     });
 
-    // Move entries to their assigned folders
-    existingEntries.forEach(entry => {
-        const entryId = getEntryId(entry);
-        const folderId = getFolderForEntry(currentWorld, entryId);
+    if (!apiResult.ok) {
+        throw new Error('Failed to caption image via Extras.');
+    }
 
-        if (folderId && folders[folderId]) {
-            const folderElement = document.querySelector(`[data-folder-id="${folderId}"] .folder-entries`);
-            if (folderElement) {
-                folderElement.appendChild(entry);
-            }
-        }
+    const data = await apiResult.json();
+    return data;
+}
+
+/**
+ * Generates a caption for an image using a local model.
+ * @param {string} base64Img Base64 encoded image without the data:image/...;base64, prefix
+ * @returns {Promise<{caption: string}>} Generated caption
+ */
+async function captionLocal(base64Img) {
+    const apiResult = await fetch('/api/extra/caption', {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify({ image: base64Img }),
     });
 
-    // Setup drag and drop
-    setupDragAndDrop();
+    if (!apiResult.ok) {
+        throw new Error('Failed to caption image via local pipeline.');
+    }
+
+    const data = await apiResult.json();
+    return data;
 }
 
-function createFolderElement(folder, container) {
-    // Check if folder element already exists
-    let folderElement = document.querySelector(`[data-folder-id="${folder.id}"]`);
-
-    if (!folderElement) {
-        folderElement = document.createElement('div');
-        folderElement.className = 'wi-folder';
-        folderElement.setAttribute('data-folder-id', folder.id);
-        folderElement.draggable = true;
-
-        // Folder header
-        const folderHeader = document.createElement('div');
-        folderHeader.className = 'wi-folder-header';
-
-        // Collapse/expand icon
-        const collapseIcon = document.createElement('i');
-        collapseIcon.className = folder.collapsed ? 'fa-solid fa-chevron-right' : 'fa-solid fa-chevron-down';
-        collapseIcon.addEventListener('click', () => toggleFolder(folder.id));
-
-        // Folder name
-        const folderName = document.createElement('span');
-        folderName.className = 'wi-folder-name';
-        folderName.textContent = folder.name;
-        folderName.addEventListener('dblclick', () => renameFolderDialog(folder.id));
-
-        // Delete button
-        const deleteButton = document.createElement('i');
-        deleteButton.className = 'fa-solid fa-trash-can wi-folder-delete';
-        deleteButton.title = 'Delete Folder';
-        deleteButton.addEventListener('click', () => deleteFolderDialog(folder.id));
-
-        folderHeader.appendChild(collapseIcon);
-        folderHeader.appendChild(folderName);
-        folderHeader.appendChild(deleteButton);
-
-        // Folder entries container
-        const folderEntries = document.createElement('div');
-        folderEntries.className = 'folder-entries';
-        if (folder.collapsed) {
-            folderEntries.style.display = 'none';
-        }
-
-        folderElement.appendChild(folderHeader);
-        folderElement.appendChild(folderEntries);
-
-        container.appendChild(folderElement);
-    }
-
-    return folderElement;
-}
-
-function toggleFolder(folderId) {
-    const currentWorld = getCurrentWorldName();
-    if (!currentWorld || !settings.folders[currentWorld] || !settings.folders[currentWorld][folderId]) {
-        return;
-    }
-
-    const folder = settings.folders[currentWorld][folderId];
-    folder.collapsed = !folder.collapsed;
-
-    const folderElement = document.querySelector(`[data-folder-id="${folderId}"]`);
-    if (folderElement) {
-        const collapseIcon = folderElement.querySelector('.wi-folder-header i');
-        const entriesContainer = folderElement.querySelector('.folder-entries');
-
-        if (folder.collapsed) {
-            collapseIcon.className = 'fa-solid fa-chevron-right';
-            entriesContainer.style.display = 'none';
-        } else {
-            collapseIcon.className = 'fa-solid fa-chevron-down';
-            entriesContainer.style.display = 'block';
-        }
-    }
-
-    saveSettings();
-}
-
-function renameFolderDialog(folderId) {
-    const currentWorld = getCurrentWorldName();
-    if (!currentWorld || !settings.folders[currentWorld] || !settings.folders[currentWorld][folderId]) {
-        return;
-    }
-
-    const folder = settings.folders[currentWorld][folderId];
-    const newName = prompt('Enter new folder name:', folder.name);
-
-    if (newName && newName.trim() && newName.trim() !== folder.name) {
-        folder.name = newName.trim();
-
-        const folderNameElement = document.querySelector(`[data-folder-id="${folderId}"] .wi-folder-name`);
-        if (folderNameElement) {
-            folderNameElement.textContent = folder.name;
-        }
-
-        saveSettings();
-        toastr.success(`Folder renamed to "${folder.name}"`);
-    }
-}
-
-function deleteFolderDialog(folderId) {
-    const currentWorld = getCurrentWorldName();
-    if (!currentWorld || !settings.folders[currentWorld] || !settings.folders[currentWorld][folderId]) {
-        return;
-    }
-
-    const folder = settings.folders[currentWorld][folderId];
-
-    if (confirm(`Delete folder "${folder.name}"? Entries will be moved back to the main list.`)) {
-        deleteFolder(folderId);
-    }
-}
-
-function deleteFolder(folderId) {
-    const currentWorld = getCurrentWorldName();
-    if (!currentWorld) return;
-
-    // Move entries back to main container
-    const folderElement = document.querySelector(`[data-folder-id="${folderId}"]`);
-    if (folderElement) {
-        const entriesContainer = document.querySelector('#world_popup_entries_list');
-        const folderEntries = folderElement.querySelectorAll('.world_entry');
-
-        folderEntries.forEach(entry => {
-            entriesContainer.appendChild(entry);
-        });
-
-        folderElement.remove();
-    }
-
-    // Remove folder from settings
-    if (settings.folders[currentWorld]) {
-        delete settings.folders[currentWorld][folderId];
-    }
-
-    // Remove entry-folder associations
-    if (settings.entryFolders[currentWorld]) {
-        Object.keys(settings.entryFolders[currentWorld]).forEach(entryId => {
-            if (settings.entryFolders[currentWorld][entryId] === folderId) {
-                delete settings.entryFolders[currentWorld][entryId];
-            }
-        });
-    }
-
-    saveSettings();
-    toastr.success('Folder deleted');
-}
-
-function setupDragAndDrop() {
-    const entriesContainer = document.querySelector('#world_popup_entries_list');
-    if (!entriesContainer) return;
-
-    // Handle entry drag start
-    entriesContainer.addEventListener('dragstart', (e) => {
-        if (e.target.classList.contains('world_entry') || e.target.closest('.world_entry')) {
-            const entry = e.target.closest('.world_entry');
-            e.dataTransfer.setData('text/plain', getEntryId(entry));
-            e.dataTransfer.effectAllowed = 'move';
-        } else if (e.target.classList.contains('wi-folder') || e.target.closest('.wi-folder')) {
-            const folder = e.target.closest('.wi-folder');
-            e.dataTransfer.setData('application/folder', folder.getAttribute('data-folder-id'));
-            e.dataTransfer.effectAllowed = 'move';
-        }
+/**
+ * Generates a caption for an image using a Horde model.
+ * @param {string} base64Img Base64 encoded image without the data:image/...;base64, prefix
+ * @returns {Promise<{caption: string}>} Generated caption
+ */
+async function captionHorde(base64Img) {
+    const apiResult = await fetch('/api/horde/caption-image', {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify({ image: base64Img }),
     });
 
-    // Handle folder drop zones
-    entriesContainer.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-    });
+    if (!apiResult.ok) {
+        throw new Error('Failed to caption image via Horde.');
+    }
 
-    entriesContainer.addEventListener('drop', (e) => {
-        e.preventDefault();
+    const data = await apiResult.json();
+    return data;
+}
 
-        const entryId = e.dataTransfer.getData('text/plain');
-        const folderId = e.dataTransfer.getData('application/folder');
+/**
+ * Generates a caption for an image using a multimodal model.
+ * @param {string} base64Img Base64 encoded image with the data:image/...;base64, prefix
+ * @param {string} externalPrompt Caption prompt
+ * @returns {Promise<{caption: string}>} Generated caption
+ */
+async function captionMultimodal(base64Img, externalPrompt) {
+    let prompt = externalPrompt || extension_settings.caption.prompt || PROMPT_DEFAULT;
 
-        if (entryId) {
-            handleEntryDrop(e, entryId);
-        } else if (folderId) {
-            handleFolderDrop(e, folderId);
+    if (!externalPrompt && extension_settings.caption.prompt_ask) {
+        const customPrompt = await callGenericPopup('Enter a comment or question:', POPUP_TYPE.INPUT, prompt, { rows: 2 });
+        if (!customPrompt) {
+            throw new Error('User aborted the caption sending.');
         }
-    });
+        prompt = String(customPrompt).trim();
+    }
+
+    const caption = await getMultimodalCaption(base64Img, prompt);
+    return { caption };
 }
 
-function handleEntryDrop(e, entryId) {
-    const dropTarget = e.target.closest('.wi-folder, .folder-entries, #world_popup_entries_list');
-    if (!dropTarget) return;
-
-    const currentWorld = getCurrentWorldName();
-    if (!currentWorld) return;
-
-    let targetFolderId = null;
-
-    if (dropTarget.classList.contains('wi-folder') || dropTarget.closest('.wi-folder')) {
-        const folderElement = dropTarget.closest('.wi-folder');
-        targetFolderId = folderElement.getAttribute('data-folder-id');
+/**
+ * Handles the image selection event.
+ * @param {Event} e Input event
+ * @param {string} prompt Caption prompt
+ * @param {boolean} quiet Suppresses sending a message
+ * @returns {Promise<string>} Generated caption
+ */
+async function onSelectImage(e, prompt, quiet) {
+    if (!(e.target instanceof HTMLInputElement)) {
+        return '';
     }
 
-    // Update entry-folder association
-    if (!settings.entryFolders[currentWorld]) {
-        settings.entryFolders[currentWorld] = {};
+    const file = e.target.files[0];
+    const form = e.target.form;
+
+    if (!file || !(file instanceof File)) {
+        form && form.reset();
+        return '';
     }
 
-    if (targetFolderId) {
-        settings.entryFolders[currentWorld][entryId] = targetFolderId;
-    } else {
-        delete settings.entryFolders[currentWorld][entryId];
-    }
-
-    saveSettings();
-    renderFolders();
+    const caption = await getCaptionForFile(file, prompt, quiet);
+    form && form.reset();
+    return caption;
 }
 
-function handleFolderDrop(e, folderId) {
-    const dropTarget = e.target.closest('#world_popup_entries_list');
-    if (!dropTarget) return;
-
-    // Simple reordering - just move folder element
-    const folderElement = document.querySelector(`[data-folder-id="${folderId}"]`);
-    if (folderElement) {
-        const rect = dropTarget.getBoundingClientRect();
-        const mouseY = e.clientY - rect.top;
-
-        // Find insertion point
-        const allFolders = Array.from(dropTarget.querySelectorAll('.wi-folder'));
-        let insertBefore = null;
-
-        for (let folder of allFolders) {
-            if (folder === folderElement) continue;
-            const folderRect = folder.getBoundingClientRect();
-            const folderY = folderRect.top - rect.top;
-            if (mouseY < folderY + folderRect.height / 2) {
-                insertBefore = folder;
-                break;
-            }
+/**
+ * Gets a caption for an image file.
+ * @param {File} file Input file
+ * @param {string} prompt Caption prompt
+ * @param {boolean} quiet Suppresses sending a message
+ * @returns {Promise<string>} Generated caption
+ */
+async function getCaptionForFile(file, prompt, quiet) {
+    try {
+        setSpinnerIcon();
+        const context = getContext();
+        const fileData = await getBase64Async(await ensureImageFormatSupported(file));
+        const extension = getFileExtension(file);
+        const base64Data = fileData.split(',')[1];
+        const { caption } = await doCaptionRequest(base64Data, fileData, prompt);
+        if (!quiet) {
+            const imagePath = await saveBase64AsFile(base64Data, context.name2, '', extension);
+            await sendCaptionedMessage(caption, imagePath);
         }
-
-        if (insertBefore) {
-            dropTarget.insertBefore(folderElement, insertBefore);
-        } else {
-            dropTarget.appendChild(folderElement);
-        }
+        return caption;
+    }
+    catch (error) {
+        const errorMessage = error.message || 'Unknown error';
+        toastr.error(errorMessage, 'Failed to caption image.');
+        console.error(error);
+        return '';
+    }
+    finally {
+        setImageIcon();
     }
 }
 
-function getEntryId(entryElement) {
-    // Try to get UID from various possible attributes or data
-    return entryElement.getAttribute('data-uid') ||
-           entryElement.querySelector('[data-uid]')?.getAttribute('data-uid') ||
-           entryElement.id ||
-           entryElement.querySelector('[name="uid"]')?.value ||
-           Math.random().toString(36).substr(2, 9);
-}
-
-function getFolderForEntry(worldName, entryId) {
-    return settings.entryFolders[worldName]?.[entryId] || null;
-}
-
-function saveSettings() {
-    extension_settings[MODULE_NAME] = settings;
+function onRefineModeInput() {
+    extension_settings.caption.refine_mode = $('#caption_refine_mode').prop('checked');
     saveSettingsDebounced();
 }
 
-// Export for potential use by other extensions
-window.WorldInfoFolders = {
-    createFolder,
-    deleteFolder,
-    toggleFolder,
-    renderFolders
-};
+/**
+ * Callback for the /caption command.
+ * @param {object} args Named parameters
+ * @param {string} prompt Caption prompt
+ */
+async function captionCommandCallback(args, prompt) {
+    const quiet = isTrueBoolean(args?.quiet);
+    const mesId = args?.mesId ?? args?.id;
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
+    if (!isNaN(Number(mesId))) {
+        const message = getContext().chat[mesId];
+        if (message?.extra?.image) {
+            try {
+                const fetchResult = await fetch(message.extra.image);
+                const blob = await fetchResult.blob();
+                const file = new File([blob], 'image.jpg', { type: blob.type });
+                return await getCaptionForFile(file, prompt, quiet);
+            } catch (error) {
+                toastr.error('Failed to get image from the message. Make sure the image is accessible.');
+                return '';
+            }
+        }
+    }
+
+    return new Promise(resolve => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = async (e) => {
+            const caption = await onSelectImage(e, prompt, quiet);
+            resolve(caption);
+        };
+        input.oncancel = () => resolve('');
+        input.click();
+    });
 }
+
+jQuery(async function () {
+    function addSendPictureButton() {
+        const sendButton = $(`
+        <div id="send_picture" class="list-group-item flex-container flexGap5">
+            <div class="fa-solid fa-image extensionsMenuExtensionButton"></div>
+            <span data-i18n="Generate Caption">Generate Caption</span>
+        </div>`);
+
+        $('#caption_wand_container').append(sendButton);
+        $(sendButton).on('click', () => {
+            const hasCaptionModule = (() => {
+                const settings = extension_settings.caption;
+
+                // Handle non-multimodal sources
+                if (settings.source === 'extras' && modules.includes('caption')) return true;
+                if (settings.source === 'local' || settings.source === 'horde') return true;
+
+                // Handle multimodal sources
+                if (settings.source === 'multimodal') {
+                    const api = settings.multimodal_api;
+                    const altEndpointEnabled = settings.alt_endpoint_enabled;
+                    const altEndpointUrl = settings.alt_endpoint_url;
+
+                    // APIs that support reverse proxy
+                    const reverseProxyApis = {
+                        'openai': SECRET_KEYS.OPENAI,
+                        'mistral': SECRET_KEYS.MISTRALAI,
+                        'google': SECRET_KEYS.MAKERSUITE,
+                        'vertexai': SECRET_KEYS.VERTEXAI,
+                        'anthropic': SECRET_KEYS.CLAUDE,
+                        'xai': SECRET_KEYS.XAI,
+                    };
+
+                    if (reverseProxyApis[api]) {
+                        if (secret_state[reverseProxyApis[api]] || settings.allow_reverse_proxy) {
+                            return true;
+                        }
+                    }
+
+                    const chatCompletionApis = {
+                        'openrouter': SECRET_KEYS.OPENROUTER,
+                        'zerooneai': SECRET_KEYS.ZEROONEAI,
+                        'groq': SECRET_KEYS.GROQ,
+                        'cohere': SECRET_KEYS.COHERE,
+                        'aimlapi': SECRET_KEYS.AIMLAPI,
+                    };
+
+                    if (chatCompletionApis[api] && secret_state[chatCompletionApis[api]]) {
+                        return true;
+                    }
+
+                    const textCompletionApis = {
+                        'ollama': textgen_types.OLLAMA,
+                        'llamacpp': textgen_types.LLAMACPP,
+                        'ooba': textgen_types.OOBA,
+                        'koboldcpp': textgen_types.KOBOLDCPP,
+                        'vllm': textgen_types.VLLM,
+                    };
+
+                    if (textCompletionApis[api] && altEndpointEnabled && altEndpointUrl) {
+                        return true;
+                    }
+
+                    if (textCompletionApis[api] && !altEndpointEnabled && textgenerationwebui_settings.server_urls[textCompletionApis[api]]) {
+                        return true;
+                    }
+
+                    // Custom API doesn't need additional checks
+                    if (api === 'custom' || api === 'pollinations') {
+                        return true;
+                    }
+                }
+
+                return false;
+            })();
+
+            if (!hasCaptionModule) {
+                toastr.error('Choose other captioning source in the extension settings.', 'Captioning is not available');
+                return;
+            }
+
+            $('#img_file').trigger('click');
+        });
+    }
+    function addPictureSendForm() {
+        const inputHtml = '<input id="img_file" type="file" hidden accept="image/*">';
+        const imgForm = document.createElement('form');
+        imgForm.id = 'img_form';
+        $(imgForm).append(inputHtml);
+        $(imgForm).hide();
+        $('#form_sheld').append(imgForm);
+        $('#img_file').on('change', (e) => onSelectImage(e.originalEvent, '', false));
+    }
+    async function switchMultimodalBlocks() {
+        await addOpenRouterModels();
+        const isMultimodal = extension_settings.caption.source === 'multimodal';
+        $('#caption_multimodal_block').toggle(isMultimodal);
+        $('#caption_prompt_block').toggle(isMultimodal);
+        $('#caption_multimodal_api').val(extension_settings.caption.multimodal_api);
+        $('#caption_multimodal_model').val(extension_settings.caption.multimodal_model);
+        $('#caption_multimodal_block [data-type]').each(function () {
+            const type = $(this).data('type');
+            const types = type.split(',');
+            $(this).toggle(types.includes(extension_settings.caption.multimodal_api));
+        });
+    }
+    async function addSettings() {
+        const html = await renderExtensionTemplateAsync('caption', 'settings', { TEMPLATE_DEFAULT, PROMPT_DEFAULT });
+        $('#caption_container').append(html);
+    }
+    async function addOpenRouterModels() {
+        const dropdown = document.getElementById('caption_multimodal_model');
+        if (!(dropdown instanceof HTMLSelectElement)) {
+            return;
+        }
+        if (extension_settings.caption.source !== 'multimodal' || extension_settings.caption.multimodal_api !== 'openrouter') {
+            return;
+        }
+        const options = Array.from(dropdown.options);
+        const response = await fetch('/api/openrouter/models/multimodal', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+        });
+        if (!response.ok) {
+            return;
+        }
+        const modelIds = await response.json();
+        if (Array.isArray(modelIds) && modelIds.length > 0) {
+            modelIds.forEach((modelId) => {
+                if (!modelId || typeof modelId !== 'string' || options.some(o => o.value === modelId)) {
+                    return;
+                }
+                const option = document.createElement('option');
+                option.value = modelId;
+                option.textContent = modelId;
+                option.dataset.type = 'openrouter';
+                dropdown.add(option);
+            });
+        }
+    }
+
+    await addSettings();
+    addPictureSendForm();
+    addSendPictureButton();
+    setImageIcon();
+    migrateSettings();
+    await switchMultimodalBlocks();
+
+    $('#caption_refine_mode').prop('checked', !!(extension_settings.caption.refine_mode));
+    $('#caption_allow_reverse_proxy').prop('checked', !!(extension_settings.caption.allow_reverse_proxy));
+    $('#caption_prompt_ask').prop('checked', !!(extension_settings.caption.prompt_ask));
+    $('#caption_auto_mode').prop('checked', !!(extension_settings.caption.auto_mode));
+    $('#caption_source').val(extension_settings.caption.source);
+    $('#caption_prompt').val(extension_settings.caption.prompt);
+    $('#caption_template').val(extension_settings.caption.template);
+    $('#caption_refine_mode').on('input', onRefineModeInput);
+    $('#caption_source').on('change', () => {
+        extension_settings.caption.source = String($('#caption_source').val());
+        switchMultimodalBlocks();
+        saveSettingsDebounced();
+    });
+    $('#caption_prompt').on('input', () => {
+        extension_settings.caption.prompt = String($('#caption_prompt').val());
+        saveSettingsDebounced();
+    });
+    $('#caption_template').on('input', () => {
+        extension_settings.caption.template = String($('#caption_template').val());
+        saveSettingsDebounced();
+    });
+    $('#caption_allow_reverse_proxy').on('input', () => {
+        extension_settings.caption.allow_reverse_proxy = $('#caption_allow_reverse_proxy').prop('checked');
+        saveSettingsDebounced();
+    });
+    $('#caption_prompt_ask').on('input', () => {
+        extension_settings.caption.prompt_ask = $('#caption_prompt_ask').prop('checked');
+        saveSettingsDebounced();
+    });
+    $('#caption_auto_mode').on('input', () => {
+        extension_settings.caption.auto_mode = !!$('#caption_auto_mode').prop('checked');
+        saveSettingsDebounced();
+    });
+    $('#caption_ollama_pull').on('click', (e) => {
+        const presetModel = extension_settings.caption.multimodal_model !== 'ollama_current' ? extension_settings.caption.multimodal_model : '';
+        e.preventDefault();
+        $('#ollama_download_model').trigger('click');
+        $('#dialogue_popup_input').val(presetModel);
+    });
+    $('#caption_multimodal_api').on('change', () => {
+        const api = String($('#caption_multimodal_api').val());
+        const model = String($(`#caption_multimodal_model option[data-type="${api}"]`).first().val());
+        extension_settings.caption.multimodal_api = api;
+        extension_settings.caption.multimodal_model = model;
+        saveSettingsDebounced();
+        switchMultimodalBlocks();
+    });
+    $('#caption_multimodal_model').on('change', () => {
+        extension_settings.caption.multimodal_model = String($('#caption_multimodal_model').val());
+        saveSettingsDebounced();
+    });
+    $('#caption_altEndpoint_url').val(extension_settings.caption.alt_endpoint_url).on('input', () => {
+        extension_settings.caption.alt_endpoint_url = String($('#caption_altEndpoint_url').val());
+        saveSettingsDebounced();
+    });
+    $('#caption_altEndpoint_enabled').prop('checked', !!(extension_settings.caption.alt_endpoint_enabled)).on('input', () => {
+        extension_settings.caption.alt_endpoint_enabled = !!$('#caption_altEndpoint_enabled').prop('checked');
+        saveSettingsDebounced();
+    });
+    $('#caption_show_in_chat').prop('checked', !!(extension_settings.caption.show_in_chat)).on('input', () => {
+        extension_settings.caption.show_in_chat = !!$('#caption_show_in_chat').prop('checked');
+        saveSettingsDebounced();
+    });
+
+    const onMessageEvent = async (index) => {
+        if (!extension_settings.caption.auto_mode) {
+            return;
+        }
+
+        const data = getContext().chat[index];
+        await captionExistingMessage(data);
+    };
+
+    eventSource.on(event_types.MESSAGE_SENT, onMessageEvent);
+    eventSource.on(event_types.MESSAGE_FILE_EMBEDDED, onMessageEvent);
+
+    $(document).on('click', '.mes_img_caption', async function () {
+        const animationClass = 'fa-fade';
+        const messageBlock = $(this).closest('.mes');
+        const messageImg = messageBlock.find('.mes_img');
+        if (messageImg.hasClass(animationClass)) return;
+        messageImg.addClass(animationClass);
+        try {
+            const index = Number(messageBlock.attr('mesid'));
+            const data = getContext().chat[index];
+            await captionExistingMessage(data);
+            appendMediaToMessage(data, messageBlock, false);
+            await saveChatConditional();
+        } catch (e) {
+            console.error('Message image recaption failed', e);
+        } finally {
+            messageImg.removeClass(animationClass);
+        }
+    });
+
+    SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+        name: 'caption',
+        callback: captionCommandCallback,
+        returns: 'caption',
+        namedArgumentList: [
+            new SlashCommandNamedArgument(
+                'quiet', 'suppress sending a captioned message', [ARGUMENT_TYPE.BOOLEAN], false, false, 'false',
+            ),
+            SlashCommandNamedArgument.fromProps({
+                name: 'mesId',
+                description: 'get image from a message with this ID',
+                typeList: [ARGUMENT_TYPE.NUMBER],
+                enumProvider: commonEnumProviders.messages(),
+            }),
+        ],
+        unnamedArgumentList: [
+            new SlashCommandArgument(
+                'prompt', [ARGUMENT_TYPE.STRING], false,
+            ),
+        ],
+        helpString: `
+            <div>
+                Caption an image with an optional prompt and passes the caption down the pipe.
+            </div>
+            <div>
+                Only multimodal sources support custom prompts.
+            </div>
+            <div>
+                Provide a message ID to get an image from a message instead of uploading one.
+            </div>
+            <div>
+                Set the "quiet" argument to true to suppress sending a captioned message, default: false.
+            </div>
+        `,
+    }));
+
+    document.body.classList.add('caption');
+});

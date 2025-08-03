@@ -1,12 +1,13 @@
 {
-    "display_name": "World Info Folders",
-    "loading_order": 10,
+    "display_name": "Image Captioning",
+    "loading_order": 4,
     "requires": [],
-    "optional": [],
+    "optional": [
+        "caption"
+    ],
     "js": "index.js",
     "css": "style.css",
-    "author": "SillyTavern Community",
+    "author": "Cohee#1207",
     "version": "1.0.0",
-    "homePage": "https://github.com/SillyTavern/SillyTavern",
-    "description": "Adds folder organization functionality to World Info entries with drag and drop support"
+    "homePage": "https://github.com/SillyTavern/SillyTavern"
 }
