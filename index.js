@@ -569,20 +569,6 @@
         }
     }
 
-    // Export for potential use by other extensions
-    try {
-        if (typeof window !== 'undefined') {
-            window.WorldInfoFolders = {
-                createFolder,
-                deleteFolder,
-                toggleFolder,
-                renderFolders
-            };
-        }
-    } catch (error) {
-        console.error('[World Info Folders] Error setting up exports:', error);
-        init();
-    }
 
     jQuery(() => {
         if (window.SillyTavern) {
