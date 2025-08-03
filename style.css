@@ -1,140 +1,245 @@
-/* New Folder Button */
-#world_info_new_folder {
-    background: var(--main-text);
-    color: var(--main-text);
-    mask: url('/img/folder.svg') no-repeat center;
-    mask-size: contain;
-    -webkit-mask: url('/img/folder.svg') no-repeat center;
-    -webkit-mask-size: contain;
-    width: 20px;
-    height: 20px;
+/* World Info Folders Extension Styles */
+
+.folder-button {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 5px;
+    margin-left: 10px;
+    padding: 8px 12px;
+    background: var(--grey70);
+    border: 1px solid var(--grey60);
+    border-radius: 6px;
     cursor: pointer;
-    display: inline-block;
-    margin-left: 5px;
-    vertical-align: middle;
+    transition: all 0.2s ease;
+    font-size: 13px;
+    color: var(--main-text-color);
 }
 
-#world_info_new_folder:hover {
-    opacity: 0.7;
+.folder-button:hover {
+    background: var(--grey60);
+    border-color: var(--grey50);
 }
 
-/* Folder Styling */
+.folder-icon {
+    width: 16px;
+    height: 16px;
+    filter: brightness(0) saturate(100%) invert(var(--main-text-color-invert, 0));
+}
+
 .world-info-folder {
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
     margin-bottom: 8px;
-    background: var(--secondary-bg);
+    border: 1px solid var(--grey60);
+    border-radius: 8px;
+    background: var(--grey90);
     overflow: hidden;
 }
 
-.world-info-folder-header {
-    padding: 8px 12px;
-    background: var(--tertiary-bg);
-    border-bottom: 1px solid var(--border-color);
-    cursor: pointer;
+.folder-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    padding: 10px 12px;
+    background: var(--grey80);
+    border-bottom: 1px solid var(--grey60);
+    cursor: pointer;
     user-select: none;
+    gap: 8px;
 }
 
-.world-info-folder-header:hover {
-    background: var(--hover-bg);
+.folder-header:hover {
+    background: var(--grey70);
 }
 
-.world-info-folder-name {
-    font-weight: 500;
-    color: var(--main-text);
-    outline: none;
-    border: none;
-    background: transparent;
-    flex: 1;
-}
-
-.world-info-folder-name:focus {
-    background: var(--input-bg);
-    border: 1px solid var(--accent-color);
-    border-radius: 2px;
-    padding: 2px 4px;
-}
-
-.world-info-folder-toggle {
-    color: var(--main-text);
-    font-size: 12px;
-    transition: transform 0.2s ease;
-    margin-left: 8px;
-}
-
-.world-info-folder.open .world-info-folder-toggle {
-    transform: rotate(0deg);
-}
-
-.world-info-folder:not(.open) .world-info-folder-toggle {
-    transform: rotate(-90deg);
-}
-
-.world-info-folder-content {
-    padding: 8px;
-    background: var(--secondary-bg);
-    min-height: 40px;
-    border: 2px dashed transparent;
-    transition: border-color 0.2s ease;
-}
-
-.world-info-folder:not(.open) .world-info-folder-content {
-    display: none;
-}
-
-.world-info-folder.open .world-info-folder-content {
-    display: block;
-}
-
-/* Drag and Drop Styling */
-.sortable-ghost {
-    opacity: 0.4;
-}
-
-.sortable-chosen {
-    opacity: 0.8;
-}
-
-.sortable-drag {
-    transform: rotate(5deg);
-}
-
-.world-info-folder-content.sortable-over {
-    border-color: var(--accent-color);
-    background: var(--hover-bg);
-}
-
-body.dragging .world-info-folder-content {
-    border-style: dashed;
-    border-width: 2px;
-}
-
-body.dragging .world-info-folder-content:empty::after {
-    content: "Drop items here";
-    color: var(--secondary-text);
-    font-style: italic;
-    text-align: center;
-    display: block;
-    padding: 20px;
-}
-
-/* Ensure proper spacing for world info entries inside folders */
-.world-info-folder-content .world_info_entry {
-    margin: 4px 0;
-}
-
-.world-info-folder-content:empty {
-    min-height: 60px;
+.folder-toggle {
+    width: 16px;
+    height: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--secondary-text);
-    font-style: italic;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    color: var(--main-text-color);
 }
 
-.world-info-folder-content:empty::after {
-    content: "Drag world info entries here";
+.folder-toggle.collapsed {
+    transform: rotate(-90deg);
+}
+
+.folder-icon-small {
+    width: 18px;
+    height: 18px;
+    filter: brightness(0) saturate(100%) invert(var(--main-text-color-invert, 0));
+}
+
+.folder-name {
+    flex: 1;
+    font-weight: 600;
+    color: var(--main-text-color);
+    font-size: 14px;
+    outline: none;
+    padding: 2px 4px;
+    border-radius: 3px;
+    background: transparent;
+    transition: background 0.2s ease;
+}
+
+.folder-name:focus {
+    background: var(--grey70);
+}
+
+.folder-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.folder-header:hover .folder-actions {
+    opacity: 1;
+}
+
+.folder-delete {
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: transparent;
+    color: var(--main-text-color);
+    cursor: pointer;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+
+.folder-delete:hover {
+    background: var(--red);
+    color: white;
+}
+
+.folder-content {
+    min-height: 40px;
+    padding: 8px;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.folder-content.collapsed {
+    height: 0 !important;
+    min-height: 0;
+    padding: 0 8px;
+}
+
+.folder-drop-zone {
+    text-align: center;
+    padding: 20px;
+    color: var(--grey40);
+    font-style: italic;
+    border: 2px dashed var(--grey60);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.folder-content.drag-over .folder-drop-zone {
+    border-color: var(--main-text-color);
+    background: var(--grey80);
+    color: var(--main-text-color);
+}
+
+.folder-content .world_entry {
+    margin-bottom: 6px;
+}
+
+.folder-content .world_entry:last-child {
+    margin-bottom: 0;
+}
+
+/* Hide drop zone when folder has entries */
+.folder-content:has(.world_entry) .folder-drop-zone {
+    display: none;
+}
+
+/* Dragging states */
+.world_entry.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+}
+
+.world-info-folder.dragging {
+    opacity: 0.7;
+    transform: scale(0.98);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .folder-button span {
+        display: none;
+    }
+    
+    .folder-button {
+        padding: 8px;
+        min-width: auto;
+    }
+    
+    .folder-header {
+        padding: 8px 10px;
+    }
+    
+    .folder-name {
+        font-size: 13px;
+    }
+}
+
+/* Dark theme adjustments */
+@media (prefers-color-scheme: dark) {
+    .folder-icon {
+        filter: brightness(0) saturate(100%) invert(1);
+    }
+    
+    .folder-icon-small {
+        filter: brightness(0) saturate(100%) invert(1);
+    }
+}
+
+/* Light theme adjustments */
+@media (prefers-color-scheme: light) {
+    .folder-icon {
+        filter: brightness(0) saturate(100%) invert(0);
+    }
+    
+    .folder-icon-small {
+        filter: brightness(0) saturate(100%) invert(0);
+    }
+}
+
+/* Animation for folder expand/collapse */
+@keyframes expandFolder {
+    from {
+        height: 0;
+        opacity: 0;
+    }
+    to {
+        height: auto;
+        opacity: 1;
+    }
+}
+
+@keyframes collapseFolder {
+    from {
+        height: auto;
+        opacity: 1;
+    }
+    to {
+        height: 0;
+        opacity: 0;
+    }
+}
+
+.folder-content:not(.collapsed) {
+    animation: expandFolder 0.3s ease-out;
+}
+
+.folder-content.collapsed {
+    animation: collapseFolder 0.3s ease-out;
 }

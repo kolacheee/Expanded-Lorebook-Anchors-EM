@@ -1,12 +1,12 @@
 {
   "display_name": "World Info Folders",
-  "loading_order": 50,
+  "loading_order": 10,
   "requires": [],
   "optional": [],
   "js": "index.js",
   "css": "style.css",
-  "author": "Roo",
+  "author": "SillyTavern Community",
   "version": "1.0.0",
-  "homePage": "",
-  "description": "Adds collapsible and draggable folders to organize World Info entries."
+  "homePage": "https://github.com/SillyTavern/Extension-WorldInfoFolders",
+  "description": "Adds the ability to create collapsible, draggable folders within the World Info UI to better organize lorebook entries."
 }
