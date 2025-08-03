@@ -1,3 +1,212 @@
-#img_form {
+/* World Info Folders Extension Styles */
+
+.wi-folder {
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    margin: 5px 0;
+    background-color: var(--black10a);
+    transition: all 0.2s ease;
+}
+
+.wi-folder:hover {
+    border-color: var(--SmartThemeQuoteColor);
+    box-shadow: 0 2px 4px var(--black30a);
+}
+
+.wi-folder-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: var(--black20a);
+    border-radius: 7px 7px 0 0;
+    cursor: pointer;
+    user-select: none;
+    gap: 8px;
+}
+
+.wi-folder-header:hover {
+    background-color: var(--black30a);
+}
+
+.wi-folder-header i:first-child {
+    color: var(--grey70);
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    width: 16px;
+    text-align: center;
+}
+
+.wi-folder-header i:first-child:hover {
+    color: var(--SmartThemeBodyColor);
+}
+
+.wi-folder-name {
+    flex: 1;
+    font-weight: 500;
+    color: var(--SmartThemeBodyColor);
+    cursor: text;
+}
+
+.wi-folder-name:hover {
+    color: var(--SmartThemeQuoteColor);
+}
+
+.wi-folder-delete {
+    color: var(--grey70);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease, color 0.2s ease;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.wi-folder-header:hover .wi-folder-delete {
+    opacity: 1;
+}
+
+.wi-folder-delete:hover {
+    color: #ff6b6b;
+    background-color: var(--black20a);
+}
+
+.folder-entries {
+    padding: 8px;
+    min-height: 20px;
+    border-radius: 0 0 7px 7px;
+}
+
+.folder-entries:empty {
+    border: 2px dashed var(--SmartThemeBorderColor);
+    background-color: var(--black10a);
+    color: var(--grey70);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    font-style: italic;
+}
+
+.folder-entries:empty::before {
+    content: "Drop entries here...";
+}
+
+.folder-entries:empty.drag-over {
+    border-color: var(--SmartThemeQuoteColor);
+    background-color: var(--SmartThemeQuoteColor15);
+}
+
+/* Drag and drop states */
+.wi-folder.drag-over {
+    border-color: var(--SmartThemeQuoteColor);
+    background-color: var(--SmartThemeQuoteColor15);
+}
+
+.world_entry.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+}
+
+.wi-folder.dragging {
+    opacity: 0.7;
+    transform: scale(0.95);
+}
+
+/* Folder button styling */
+#world_create_folder_button {
+    color: var(--SmartThemeBodyColor);
+    transition: all 0.2s ease;
+}
+
+#world_create_folder_button:hover {
+    color: var(--SmartThemeQuoteColor);
+    background-color: var(--black20a);
+}
+
+/* Enhance existing world entry styling when in folders */
+.folder-entries .world_entry {
+    margin: 3px 0;
+    border-left: 3px solid transparent;
+    transition: border-color 0.2s ease;
+}
+
+.folder-entries .world_entry:hover {
+    border-left-color: var(--SmartThemeQuoteColor);
+}
+
+/* Collapsed folder styles */
+.wi-folder.collapsed .folder-entries {
     display: none;
+}
+
+.wi-folder.collapsed .wi-folder-header i:first-child {
+    transform: rotate(-90deg);
+}
+
+/* Drag preview */
+.drag-preview {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    background: var(--SmartThemeBodyColor);
+    color: var(--SmartThemeEmColor);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0.9;
+    transform: translate(-50%, -50%);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .wi-folder-header {
+        padding: 6px 10px;
+        gap: 6px;
+    }
+
+    .wi-folder-name {
+        font-size: 14px;
+    }
+
+    .folder-entries {
+        padding: 6px;
+    }
+}
+
+/* Animation for folder expansion/collapse */
+.folder-entries {
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+/* Drop zone highlighting */
+.drop-zone-active {
+    background-color: var(--SmartThemeQuoteColor15) !important;
+    border: 2px dashed var(--SmartThemeQuoteColor) !important;
+}
+
+/* Ensure proper z-index for dragged elements */
+.world_entry[draggable="true"]:hover,
+.wi-folder[draggable="true"]:hover {
+    cursor: grab;
+}
+
+.world_entry[draggable="true"]:active,
+.wi-folder[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+/* Folder counter badge */
+.wi-folder-counter {
+    background-color: var(--SmartThemeQuoteColor);
+    color: var(--SmartThemeEmColor);
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    margin-left: auto;
+    margin-right: 8px;
+}
+
+/* Empty state styling */
+.wi-folder:has(.folder-entries:empty) .wi-folder-counter {
+    background-color: var(--grey70);
 }
