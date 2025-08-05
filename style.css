@@ -1,16 +1,35 @@
-.lorebook-entry.is-folder {
-    background-color: var(--secondary-color);
-    border-left: 3px solid var(--primary-color);
+.lorebook-folder {
+    background-color: #2a2a2a !important;
+    border-left: 3px solid #4a9eff;
 }
 
-.lorebook-entry .entry-content {
-    display: block;
+.folder-header {
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-.lorebook-entry.collapsed .entry-content {
-    display: none;
+.folder-header:hover {
+    background-color: #3a3a3a;
 }
 
-.lorebook-entry .drag-handle {
-    cursor: grab;
+.folder-toggle {
+    font-family: monospace;
+    font-weight: bold;
+}
+
+.folder-name {
+    font-weight: bold;
+    flex-grow: 1;
+}
+
+.folder-count {
+    color: #888;
+    font-size: 0.9em;
+}
+
+.folder-children {
+    border-left: 2px solid #333;
 }
