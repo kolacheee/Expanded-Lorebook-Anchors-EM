@@ -1,5 +1,5 @@
 import { eventSource, event_types } from '../../script.js';
-import { world_info, world_names } from '../world-info.js';
+import { world_info, world_names } from '../../world-info.js';
 import { saveSettingsDebounced } from '../../script.js';
 
 // Extension state
@@ -438,8 +438,22 @@ function updateFolderExpandedState(folderUid, expanded) {
     saveSettingsDebounced();
 }
 
-// Initialize when DOM is ready
-jQuery(document).ready(function() {
-    console.log('World Info Folders: DOM ready, initializing...');
+// Initialize when DOM is ready and jQuery is available
+function tryInitialize() {
+    // Check if jQuery and required modules are available
+    if (typeof $ === 'undefined' || typeof world_info === 'undefined') {
+        console.log('World Info Folders: Dependencies not ready, retrying...');
+        setTimeout(tryInitialize, 100);
+        return;
+    }
+
+    console.log('World Info Folders: Dependencies ready, initializing...');
     initializeWorldInfoFolders();
-});
+}
+
+// Start initialization when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryInitialize);
+} else {
+    tryInitialize();
+}
