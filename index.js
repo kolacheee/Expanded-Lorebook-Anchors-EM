@@ -13,57 +13,52 @@
     }
 
     function initializeExtension() {
-        // Hook into worldinfo events
-        $(document).on('click', '#world_info_button', function() {
-            setTimeout(initializeFolders, 100);
+        // Hook into worldinfo UI appearing
+        $(document).on('click', '#WIMode', function() {
+            setTimeout(initializeFolders, 200);
         });
-
-        // Monitor for lorebook UI changes
+    
+        // Also try when world info panel opens
         const observer = new MutationObserver(function(mutations) {
             mutations.forEach(function(mutation) {
-                if (mutation.addedNodes) {
-                    mutation.addedNodes.forEach(node => {
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeType === 1) {
+                        if (node.id === 'world_info' || node.querySelector('#world_info')) {
+                            setTimeout(initializeFolders, 100);
+                        }
                         if (node.classList && node.classList.contains('worldInfoEntries')) {
                             setTimeout(transformLorebook, 50);
                         }
-                    });
-                }
+                    }
+                });
             });
         });
-
+    
         observer.observe(document.body, {
             childList: true,
             subtree: true
         });
+    
+        // Try immediate initialization if world info is already open
+        if (document.querySelector('#world_info')) {
+            setTimeout(initializeFolders, 100);
+        }
     }
 
     function initializeFolders() {
-        // Target the correct buttons container in World Info
-        const worldInfoContainer = document.querySelector('#world_info');
-        if (!worldInfoContainer) return;
+        // Add "Create Folder" button between New Entry and Fill empty Memo buttons
+        const newEntryBtn = document.querySelector('#world_popup_new');
+        const backfillBtn = document.querySelector('#world_backfill_memos');
     
-        // Look for the specific button container with New Entry and Fill buttons
-        const buttonRow = worldInfoContainer.querySelector('.world_buttons_row') ||
-                         worldInfoContainer.querySelector('.flex-container') ||
-                         worldInfoContainer.querySelector('[class*="button"]').parentElement;
-    
-        if (buttonRow && !document.querySelector('#create-folder-btn')) {
+        if (newEntryBtn && backfillBtn && !document.querySelector('#create-folder-btn')) {
             const createFolderBtn = document.createElement('div');
             createFolderBtn.id = 'create-folder-btn';
             createFolderBtn.className = 'menu_button';
-            createFolderBtn.innerHTML = '<i class="fa-solid fa-folder-plus"></i> Create Folder';
+            createFolderBtn.innerHTML = '<i class="fa-folder-plus"></i> Create Folder';
             createFolderBtn.addEventListener('click', createFolder);
     
-            // Find the "Fill empty" button and insert before it
-            const fillButton = buttonRow.querySelector('[id*="fill"]') ||
-                              buttonRow.querySelector('div:last-child');
-    
-            if (fillButton) {
-                buttonRow.insertBefore(createFolderBtn, fillButton);
-            } else {
-                // Fallback: just append to the button container
-                buttonRow.appendChild(createFolderBtn);
-            }
+            // Insert between the two buttons
+            newEntryBtn.parentNode.insertBefore(createFolderBtn, backfillBtn);
         }
     
         setTimeout(transformLorebook, 100);
