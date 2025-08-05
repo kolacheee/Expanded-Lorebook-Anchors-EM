@@ -1,7 +1,9 @@
-.wif-folder-entry {
-    border-left: 3px solid #4a4a4a;
-    padding-left: 10px;
-    margin-left: 5px;
+#wif_new_folder_btn {
+    min-width: 127px;
+}
+
+.wif-folder-entry .entry_content {
+    display: none;
 }
 
 .wif-folder-header {
@@ -14,14 +16,16 @@
     margin-right: 5px;
 }
 
-.wif-folder-icon {
-    margin-right: 5px;
-}
-
 .wif-folder-name {
     font-weight: bold;
 }
 
 .wif-folder-content {
     padding-left: 20px;
+    border-left: 2px solid #444;
+    margin-left: 5px;
+}
+
+.wif-folder-hover {
+    background-color: rgba(255, 255, 255, 0.1);
 }

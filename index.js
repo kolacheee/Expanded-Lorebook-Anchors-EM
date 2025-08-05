@@ -1,6 +1,7 @@
 (function () {
     const FOLDER_PREFIX = 'wif_folder_';
 
+    // Function to create a new folder entry
     function createNewFolder() {
         const folderName = prompt('Enter folder name:');
         if (!folderName) return;
@@ -33,33 +34,79 @@
             automationId: '',
             role: 0,
             vectorized: false,
-            // Custom folder properties
             isFolder: true,
             folderName: folderName,
             folderExpanded: true,
-            folderIcon: 'fa-folder',
             children: [],
         };
 
         window.world_info.entries[newFolderUid] = newFolderEntry;
         window.saveSettingsDebounced();
         window.eventSource.emit(window.event_types.WORLDINFO_UPDATED);
-        console.log('World Info Folders: Created new folder:', folderName);
     }
 
+    // Function to add the "New Folder" button to the UI
     function addFolderUI() {
+        if (document.getElementById('wif_new_folder_btn')) return;
+
         const newFolderButton = document.createElement('div');
         newFolderButton.id = 'wif_new_folder_btn';
         newFolderButton.className = 'menu_button';
         newFolderButton.title = 'New Folder';
-        newFolderButton.innerHTML = `<i class="fa-solid fa-folder-plus"></i>`;
-
+        newFolderButton.innerHTML = '<i class="fa-solid fa-folder-plus"></i><span>New Folder</span>';
         newFolderButton.addEventListener('click', createNewFolder);
 
-        const newEntryButton = document.getElementById('world_info_new_entry');
-        if (newEntryButton && newEntryButton.parentNode) {
-            newEntryButton.parentNode.insertBefore(newFolderButton, newEntryButton.nextSibling);
+        const backfillMemosButton = document.getElementById('world_backfill_memos');
+        if (backfillMemosButton && backfillMemosButton.parentNode) {
+            backfillMemosButton.parentNode.insertBefore(newFolderButton, backfillMemosButton);
+        } else {
+            // Fallback if the primary anchor isn't found
+            const newEntryButton = document.getElementById('world_popup_new');
+            if (newEntryButton && newEntryButton.parentNode) {
+                newEntryButton.parentNode.insertBefore(newFolderButton, newEntryButton.nextSibling);
+            }
         }
+    }
+
+    // Function to render the folder structure
+    function renderFolders() {
+        Object.values(window.world_info.entries).forEach(entry => {
+            if (entry.isFolder) {
+                const folderElement = $(`[data-uid="${entry.uid}"]`);
+                if (!folderElement.length || folderElement.hasClass('wif-folder-entry')) return;
+
+                folderElement.addClass('wif-folder-entry');
+                const folderHeader = `
+                    <div class="wif-folder-header">
+                        <div class="wif-folder-toggle">
+                            <i class="fa-solid ${entry.folderExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}"></i>
+                        </div>
+                        <div class="wif-folder-name">${entry.folderName}</div>
+                    </div>
+                `;
+                folderElement.find('.entry_name').html(folderHeader);
+
+                let folderContent = folderElement.find('.wif-folder-content');
+                if (!folderContent.length) {
+                    folderContent = $('<div class="wif-folder-content"></div>').appendTo(folderElement);
+                }
+
+                if (entry.folderExpanded) {
+                    folderContent.show();
+                } else {
+                    folderContent.hide();
+                }
+
+                entry.children.forEach(childUid => {
+                    const childElement = $(`#world_popup_entries_list > [data-uid="${childUid}"]`);
+                    folderContent.append(childElement);
+                });
+
+                folderElement.find('.wif-folder-header').on('click', () => toggleFolder(entry.uid));
+            }
+        });
+        makeEntriesDraggable();
+        makeFoldersDroppable();
     }
 
     function toggleFolder(folderUid) {
@@ -74,37 +121,30 @@
     function moveEntryToFolder(entryUid, targetFolderUid) {
         const entry = window.world_info.entries[entryUid];
         const targetFolder = window.world_info.entries[targetFolderUid];
+        if (!entry || !targetFolder || !targetFolder.isFolder) return;
 
-        if (!entry || !targetFolder || !targetFolder.isFolder) {
-            return;
-        }
-
-        // Remove from previous folder
         Object.values(window.world_info.entries).forEach(folder => {
             if (folder.isFolder && folder.children.includes(entryUid)) {
                 folder.children = folder.children.filter(childUid => childUid !== entryUid);
             }
         });
 
-        // Add to new folder
         targetFolder.children.push(entryUid);
-
         window.saveSettingsDebounced();
         window.eventSource.emit(window.event_types.WORLDINFO_UPDATED);
     }
 
     function makeEntriesDraggable() {
-        $('.world_entry').draggable({
+        $('.world_entry:not(.wif-folder-entry)').draggable({
             revert: 'invalid',
             helper: 'clone',
             appendTo: 'body',
-            cursor: 'move',
         });
     }
 
     function makeFoldersDroppable() {
         $('.wif-folder-entry').droppable({
-            accept: '.world_entry',
+            accept: '.world_entry:not(.wif-folder-entry)',
             hoverClass: 'wif-folder-hover',
             drop: function (event, ui) {
                 const droppedEntryUid = ui.draggable.data('uid');
@@ -114,64 +154,26 @@
         });
     }
 
-    function renderFolders() {
-        Object.values(window.world_info.entries).forEach(entry => {
-            if (entry.isFolder) {
-                const folderElement = $(`[data-uid="${entry.uid}"]`);
-                folderElement.addClass('wif-folder-entry');
-
-                const folderHeader = `
-                    <div class="wif-folder-header">
-                        <div class="wif-folder-toggle">
-                            <i class="fa-solid ${entry.folderExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}"></i>
-                        </div>
-                        <div class="wif-folder-icon">
-                            <i class="fa-solid ${entry.folderIcon}"></i>
-                        </div>
-                        <div class="wif-folder-name">${entry.folderName}</div>
-                    </div>
-                `;
-                folderElement.find('.entry_name').html(folderHeader);
-
-                const folderContent = folderElement.find('.entry_content');
-                folderContent.addClass('wif-folder-content');
-
-                if (entry.folderExpanded) {
-                    folderContent.show();
-                } else {
-                    folderContent.hide();
-                }
-
-                entry.children.forEach(childUid => {
-                    const childElement = $(`[data-uid="${childUid}"]`);
-                    folderContent.append(childElement);
-                });
-
-                folderElement.find('.wif-folder-header').on('click', () => toggleFolder(entry.uid));
-            }
-        });
-
-        makeEntriesDraggable();
-        makeFoldersDroppable();
-    }
-
-    function waitForDependencies() {
+    // Wait for the UI to be ready before adding elements
+    function waitForUi() {
         const interval = setInterval(() => {
-            if (
-                typeof $ !== 'undefined' &&
-                typeof window.world_info !== 'undefined' &&
-                typeof window.eventSource !== 'undefined' &&
-                typeof window.event_types !== 'undefined' &&
-                typeof window.saveSettingsDebounced !== 'undefined' &&
-                document.getElementById('world_info_new_entry')
-            ) {
+            if (document.getElementById('world_backfill_memos')) {
                 clearInterval(interval);
                 addFolderUI();
+                // Use a MutationObserver to detect when entries are added to the list
+                const observer = new MutationObserver(() => {
+                    renderFolders();
+                });
+                const targetNode = document.getElementById('world_popup_entries_list');
+                if (targetNode) {
+                    observer.observe(targetNode, { childList: true });
+                }
+                // Initial render
                 renderFolders();
-                window.eventSource.on(window.event_types.WORLDINFO_UPDATED, renderFolders);
             }
         }, 250);
     }
 
-    waitForDependencies();
+    // Hook into SillyTavern's events
+    $(document).ready(waitForUi);
 })();
