@@ -1,31 +1,35 @@
+/* global world_names, world_info, createWorldInfoEntry, saveWorldInfo, updateEditor */
+
+// @ts-nocheck
+
 (function () {
     // Function to create a new folder entry
     function createNewFolder() {
         const folderName = prompt('Enter folder name:');
         if (!folderName) return;
 
-        // Get the currently selected world info file
+        // a. Get the currently selected world info file name.
         const worldName = world_names[Number($('#world_editor_select').val())];
         if (!worldName) {
             toastr.error('Please select a World Info file first.');
             return;
         }
 
-        // Create a new entry using the official function
+        // b. Call the global createWorldInfoEntry(worldName, data) function to create a new, standard lorebook entry.
         const entry = createWorldInfoEntry(worldName, world_info);
         if (!entry) {
             toastr.error('Failed to create a new entry.');
             return;
         }
 
-        // Modify the entry to be a folder
-        entry.comment = folderName;
+        // c. Add the following properties to the newly created entry:
         entry.isFolder = true;
         entry.children = [];
+        entry.comment = folderName;
 
-        // Save the updated world info
+        // d. Call the global saveWorldInfo(worldName, data, true) function to save the changes.
         saveWorldInfo(worldName, world_info, true).then(() => {
-            // Refresh the editor to show the new folder
+            // e. Call the global updateEditor(entry.uid) function to refresh the UI and display the new folder.
             updateEditor(entry.uid);
         });
     }
@@ -140,7 +144,8 @@
     // Wait for the UI to be ready before adding elements
     function waitForUi() {
         const interval = setInterval(() => {
-            if (typeof createWorldInfoEntry !== 'undefined' && typeof saveWorldInfo !== 'undefined' && typeof updateEditor !== 'undefined' && typeof world_names !== 'undefined') {
+            const anchorElement = document.getElementById('world_backfill_memos') ?? document.getElementById('world_popup_new');
+            if (anchorElement && typeof world_names !== 'undefined' && typeof world_info !== 'undefined') {
                 clearInterval(interval);
                 addFolderUI();
                 const observer = new MutationObserver(() => {
