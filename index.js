@@ -1,48 +1,33 @@
 (function () {
-    const FOLDER_PREFIX = 'wif_folder_';
-
     // Function to create a new folder entry
     function createNewFolder() {
         const folderName = prompt('Enter folder name:');
         if (!folderName) return;
 
-        const newFolderUid = `${FOLDER_PREFIX}${Date.now()}`;
-        const newFolderEntry = {
-            uid: newFolderUid,
-            key: [],
-            keysecondary: [],
-            comment: `Folder: ${folderName}`,
-            content: '',
-            constant: false,
-            selective: true,
-            order: Object.keys(window.world_info.entries).length,
-            position: 0,
-            disable: false,
-            addMemo: false,
-            excludeRecursion: false,
-            delayUntilRecursion: false,
-            displayIndex: Object.keys(window.world_info.entries).length,
-            probability: 100,
-            useProbability: false,
-            group: '',
-            groupOverride: false,
-            groupWeight: 100,
-            scanDepth: null,
-            caseSensitive: null,
-            matchWholeWords: null,
-            useGroupScoring: null,
-            automationId: '',
-            role: 0,
-            vectorized: false,
-            isFolder: true,
-            folderName: folderName,
-            folderExpanded: true,
-            children: [],
-        };
+        // Get the currently selected world info file
+        const worldName = world_names[Number($('#world_editor_select').val())];
+        if (!worldName) {
+            toastr.error('Please select a World Info file first.');
+            return;
+        }
 
-        window.world_info.entries[newFolderUid] = newFolderEntry;
-        window.saveSettingsDebounced();
-        window.eventSource.emit(window.event_types.WORLDINFO_UPDATED);
+        // Create a new entry using the official function
+        const entry = createWorldInfoEntry(worldName, world_info);
+        if (!entry) {
+            toastr.error('Failed to create a new entry.');
+            return;
+        }
+
+        // Modify the entry to be a folder
+        entry.comment = folderName;
+        entry.isFolder = true;
+        entry.children = [];
+
+        // Save the updated world info
+        saveWorldInfo(worldName, world_info, true).then(() => {
+            // Refresh the editor to show the new folder
+            updateEditor(entry.uid);
+        });
     }
 
     // Function to add the "New Folder" button to the UI
@@ -59,18 +44,12 @@
         const backfillMemosButton = document.getElementById('world_backfill_memos');
         if (backfillMemosButton && backfillMemosButton.parentNode) {
             backfillMemosButton.parentNode.insertBefore(newFolderButton, backfillMemosButton);
-        } else {
-            // Fallback if the primary anchor isn't found
-            const newEntryButton = document.getElementById('world_popup_new');
-            if (newEntryButton && newEntryButton.parentNode) {
-                newEntryButton.parentNode.insertBefore(newFolderButton, newEntryButton.nextSibling);
-            }
         }
     }
 
     // Function to render the folder structure
     function renderFolders() {
-        Object.values(window.world_info.entries).forEach(entry => {
+        Object.values(world_info.entries).forEach(entry => {
             if (entry.isFolder) {
                 const folderElement = $(`[data-uid="${entry.uid}"]`);
                 if (!folderElement.length || folderElement.hasClass('wif-folder-entry')) return;
@@ -81,7 +60,7 @@
                         <div class="wif-folder-toggle">
                             <i class="fa-solid ${entry.folderExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}"></i>
                         </div>
-                        <div class="wif-folder-name">${entry.folderName}</div>
+                        <div class="wif-folder-name">${entry.comment}</div>
                     </div>
                 `;
                 folderElement.find('.entry_name').html(folderHeader);
@@ -110,28 +89,32 @@
     }
 
     function toggleFolder(folderUid) {
-        const folderEntry = window.world_info.entries[folderUid];
+        const folderEntry = world_info.entries[folderUid];
         if (folderEntry && folderEntry.isFolder) {
             folderEntry.folderExpanded = !folderEntry.folderExpanded;
-            window.saveSettingsDebounced();
-            window.eventSource.emit(window.event_types.WORLDINFO_UPDATED);
+            const worldName = world_names[Number($('#world_editor_select').val())];
+            saveWorldInfo(worldName, world_info, true).then(() => {
+                updateEditor(folderUid);
+            });
         }
     }
 
     function moveEntryToFolder(entryUid, targetFolderUid) {
-        const entry = window.world_info.entries[entryUid];
-        const targetFolder = window.world_info.entries[targetFolderUid];
+        const entry = world_info.entries[entryUid];
+        const targetFolder = world_info.entries[targetFolderUid];
         if (!entry || !targetFolder || !targetFolder.isFolder) return;
 
-        Object.values(window.world_info.entries).forEach(folder => {
+        Object.values(world_info.entries).forEach(folder => {
             if (folder.isFolder && folder.children.includes(entryUid)) {
                 folder.children = folder.children.filter(childUid => childUid !== entryUid);
             }
         });
 
         targetFolder.children.push(entryUid);
-        window.saveSettingsDebounced();
-        window.eventSource.emit(window.event_types.WORLDINFO_UPDATED);
+        const worldName = world_names[Number($('#world_editor_select').val())];
+        saveWorldInfo(worldName, world_info, true).then(() => {
+            updateEditor(targetFolderUid);
+        });
     }
 
     function makeEntriesDraggable() {
@@ -157,10 +140,9 @@
     // Wait for the UI to be ready before adding elements
     function waitForUi() {
         const interval = setInterval(() => {
-            if (document.getElementById('world_backfill_memos')) {
+            if (typeof createWorldInfoEntry !== 'undefined' && typeof saveWorldInfo !== 'undefined' && typeof updateEditor !== 'undefined' && typeof world_names !== 'undefined') {
                 clearInterval(interval);
                 addFolderUI();
-                // Use a MutationObserver to detect when entries are added to the list
                 const observer = new MutationObserver(() => {
                     renderFolders();
                 });
@@ -168,12 +150,10 @@
                 if (targetNode) {
                     observer.observe(targetNode, { childList: true });
                 }
-                // Initial render
                 renderFolders();
             }
         }, 250);
     }
 
-    // Hook into SillyTavern's events
     $(document).ready(waitForUi);
 })();
