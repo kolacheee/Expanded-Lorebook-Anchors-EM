@@ -439,23 +439,21 @@
         window.saveSettingsDebounced();
     }
 
-    // Initialize when DOM is ready and jQuery is available
-    function tryInitialize() {
-        // Check if jQuery and required modules are available
-        if (typeof $ === 'undefined' || typeof window.world_info === 'undefined' || typeof window.eventSource === 'undefined' || typeof window.event_types === 'undefined' || typeof window.saveSettingsDebounced === 'undefined') {
-            console.log('World Info Folders: Dependencies not ready, retrying...');
-            setTimeout(tryInitialize, 100);
-            return;
-        }
-
-        console.log('World Info Folders: Dependencies ready, initializing...');
-        initializeWorldInfoFolders();
+    function waitForDependencies() {
+        const interval = setInterval(() => {
+            if (typeof $ !== 'undefined' &&
+                typeof window.world_info !== 'undefined' &&
+                typeof window.eventSource !== 'undefined' &&
+                typeof window.event_types !== 'undefined' &&
+                typeof window.saveSettingsDebounced !== 'undefined')
+            {
+                console.log('World Info Folders: Dependencies are ready, initializing.');
+                clearInterval(interval);
+                initializeWorldInfoFolders();
+            }
+        }, 100); // Check every 100ms
     }
 
-    // Start initialization when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', tryInitialize);
-    } else {
-        tryInitialize();
-    }
+    // Start waiting for dependencies as soon as the script is loaded.
+    waitForDependencies();
 })();
