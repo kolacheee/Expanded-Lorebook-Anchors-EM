@@ -96,8 +96,8 @@
      * Add folder management UI to the world info panel
      */
     function addFolderUI() {
-        const newEntryButton = $('#world_info_new_entry');
-        if (newEntryButton.length && !$('#wif_new_folder_btn').length) {
+        const fillKeysButton = $('#world_info_fill_keys');
+        if (fillKeysButton.length && !$('#wif_new_folder_btn').length) {
             const newFolderButton = $(`
                 <div id="wif_new_folder_btn" class="menu_button" title="New Folder">
                     <i class="fa-solid fa-folder-plus"></i>
@@ -106,7 +106,7 @@
             `);
 
             newFolderButton.on('click', createNewFolder);
-            newEntryButton.after(newFolderButton);
+            fillKeysButton.before(newFolderButton);
         }
     }
 
