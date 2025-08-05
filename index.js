@@ -96,22 +96,40 @@
      * Add folder management UI to the world info panel
      */
     function addFolderUI() {
+        console.log('World Info Folders: Running addFolderUI()');
+
+        const newEntryButton = $('#world_info_new_entry');
+        console.log('World Info Folders: Found "New Entry" button:', newEntryButton.length > 0);
+
         const controlsContainer = $('#world_info_controls');
-        console.log('World Info Folders: Checking for #world_info_controls. Found elements:', controlsContainer.length);
+        console.log('World Info Folders: Found controls container:', controlsContainer.length > 0);
 
         if (controlsContainer.length && !$('#wif_new_folder_btn').length) {
-            console.log('World Info Folders: Adding "New Folder" button.');
+            console.log('World Info Folders: Creating and adding "New Folder" button.');
             const newFolderButton = $(`
-                <div id="wif_new_folder_btn" class="menu_button" title="New Folder">
+                <div id="wif_new_folder_btn" class="menu_button" title="New Folder" style="display: inline-block !important; visibility: visible !important;">
                     <i class="fa-solid fa-folder-plus"></i>
                     <span>New Folder</span>
                 </div>
             `);
 
             newFolderButton.on('click', createNewFolder);
-            controlsContainer.append(newFolderButton);
+
+            // Try to add it after the "New Entry" button if it exists, otherwise add it to the main container
+            if (newEntryButton.length) {
+                newEntryButton.after(newFolderButton);
+            } else {
+                controlsContainer.append(newFolderButton);
+            }
+
+            console.log('World Info Folders: "New Folder" button has been added to the DOM.');
         } else {
-            console.log('World Info Folders: "New Folder" button not added. Either #world_info_controls not found or button already exists.');
+            if (!controlsContainer.length) {
+                console.log('World Info Folders: Could not find the controls container to add the button to.');
+            }
+            if ($('#wif_new_folder_btn').length) {
+                console.log('World Info Folders: "New Folder" button already exists.');
+            }
         }
     }
 
