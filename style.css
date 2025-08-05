@@ -2,7 +2,7 @@
 
 /* New Folder Button */
 #wif_new_folder_btn {
-    display: flex;
+    display: inline-block !important;
     align-items: center;
     gap: 5px;
     padding: 8px 12px;

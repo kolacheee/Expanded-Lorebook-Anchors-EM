@@ -96,10 +96,10 @@
      * Add folder management UI to the world info panel
      */
     function addFolderUI() {
-        const newEntryButton = $('#world_info_new_entry');
-        console.log('World Info Folders: Checking for #world_info_new_entry. Found elements:', newEntryButton.length);
+        const controlsContainer = $('#world_info_controls');
+        console.log('World Info Folders: Checking for #world_info_controls. Found elements:', controlsContainer.length);
 
-        if (newEntryButton.length && !$('#wif_new_folder_btn').length) {
+        if (controlsContainer.length && !$('#wif_new_folder_btn').length) {
             console.log('World Info Folders: Adding "New Folder" button.');
             const newFolderButton = $(`
                 <div id="wif_new_folder_btn" class="menu_button" title="New Folder">
@@ -109,9 +109,9 @@
             `);
 
             newFolderButton.on('click', createNewFolder);
-            newEntryButton.after(newFolderButton);
+            controlsContainer.append(newFolderButton);
         } else {
-            console.log('World Info Folders: "New Folder" button not added. Either #world_info_new_entry not found or button already exists.');
+            console.log('World Info Folders: "New Folder" button not added. Either #world_info_controls not found or button already exists.');
         }
     }
 
