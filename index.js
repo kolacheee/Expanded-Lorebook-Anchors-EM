@@ -1,151 +1,214 @@
-import { eventSource, event_types } from '../../../script.js';
+(() => {
+    'use strict';
 
-let folderStates = {}; // Track which folders are collapsed/expanded
+    let folderStates = {}; // Track which folders are collapsed/expanded
 
-// Hook into lorebook UI rendering
-jQuery(document).ready(function() {
-    eventSource.on(event_types.WORLDINFO_LOADED, initializeFolders);
-
-    // Monitor for lorebook UI changes
-    const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.target.classList && mutation.target.classList.contains('worldInfoEntries')) {
-                transformLorebook();
-            }
-        });
-    });
-
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['class']
-    });
-});
-
-function initializeFolders() {
-    // Add "Create Folder" button to lorebook UI
-    const buttonsContainer = document.querySelector('#world_info .world_buttons');
-    if (buttonsContainer && !document.querySelector('#create-folder-btn')) {
-        const createFolderBtn = document.createElement('div');
-        createFolderBtn.id = 'create-folder-btn';
-        createFolderBtn.className = 'menu_button';
-        createFolderBtn.innerHTML = '<i class="fa-solid fa-folder-plus"></i> Create Folder';
-        createFolderBtn.onclick = createFolder;
-        buttonsContainer.appendChild(createFolderBtn);
+    // Wait for SillyTavern to be ready
+    function waitForST() {
+        if (typeof window.eventSource !== 'undefined' && window.world_info_data) {
+            initializeExtension();
+        } else {
+            setTimeout(waitForST, 100);
+        }
     }
 
-    transformLorebook();
-}
+    function initializeExtension() {
+        // Hook into worldinfo events
+        $(document).on('click', '#world_info_button', function() {
+            setTimeout(initializeFolders, 100);
+        });
 
-function createFolder() {
-    const folderName = prompt('Enter folder name:');
-    if (!folderName) return;
+        // Monitor for lorebook UI changes
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.addedNodes) {
+                    mutation.addedNodes.forEach(node => {
+                        if (node.classList && node.classList.contains('worldInfoEntries')) {
+                            setTimeout(transformLorebook, 50);
+                        }
+                    });
+                }
+            });
+        });
 
-    // Create a new entry that acts as a folder
-    const newEntry = {
-        comment: `FOLDER:${folderName}`,
-        content: '',
-        disable: true,
-        group: '',
-        // ... other default properties
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    function initializeFolders() {
+        // Add "Create Folder" button to lorebook UI
+        const buttonsContainer = document.querySelector('#world_info .world_buttons');
+        if (buttonsContainer && !document.querySelector('#create-folder-btn')) {
+            const createFolderBtn = document.createElement('div');
+            createFolderBtn.id = 'create-folder-btn';
+            createFolderBtn.className = 'menu_button';
+            createFolderBtn.innerHTML = '<i class="fa-solid fa-folder-plus"></i> Create Folder';
+            createFolderBtn.addEventListener('click', createFolder);
+            buttonsContainer.appendChild(createFolderBtn);
+        }
+
+        setTimeout(transformLorebook, 100);
+    }
+
+    function createFolder() {
+        const folderName = prompt('Enter folder name:');
+        if (!folderName) return;
+
+        // Find the highest UID to create a new one
+        const maxUid = Math.max(...Object.keys(window.world_info_data?.entries || {}).map(Number), -1);
+        const newUid = maxUid + 1;
+
+        // Create a new entry that acts as a folder
+        window.world_info_data.entries[newUid] = {
+            uid: newUid,
+            key: [],
+            keysecondary: [],
+            comment: `FOLDER:${folderName}`,
+            content: '',
+            constant: false,
+            vectorized: false,
+            selective: true,
+            selectiveLogic: 0,
+            addMemo: true,
+            order: 100,
+            position: 0,
+            disable: true,
+            excludeRecursion: false,
+            preventRecursion: false,
+            delayUntilRecursion: false,
+            probability: 100,
+            useProbability: true,
+            depth: 4,
+            group: '',
+            groupOverride: false,
+            groupWeight: 100,
+            scanDepth: null,
+            caseSensitive: null,
+            matchWholeWords: null,
+            useGroupScoring: null,
+            automationId: '',
+            role: null,
+            sticky: 0,
+            cooldown: 0,
+            delay: 0,
+            displayIndex: newUid
+        };
+
+        // Save and refresh
+        saveWorldInfo();
+        setTimeout(() => {
+            updateWorldInfoList();
+            transformLorebook();
+        }, 100);
+    }
+
+    function transformLorebook() {
+        const entriesContainer = document.querySelector('.worldInfoEntries');
+        if (!entriesContainer || !window.world_info_data?.entries) return;
+
+        const entries = Array.from(entriesContainer.children);
+        const folderStructure = buildFolderHierarchy(entries);
+
+        // Clear and rebuild
+        entriesContainer.innerHTML = '';
+        renderFolderStructure(entriesContainer, folderStructure);
+    }
+
+    function buildFolderHierarchy(entries) {
+        const folders = {};
+        const rootItems = [];
+
+        entries.forEach(entry => {
+            const entryId = entry.getAttribute('data-uid') || entry.querySelector('[data-uid]')?.getAttribute('data-uid');
+            if (!entryId) return;
+
+            const entryData = window.world_info_data.entries[entryId];
+            if (!entryData) return;
+
+            if (isFolder(entryData)) {
+                folders[entryData.uid] = {
+                    element: entry,
+                    data: entryData,
+                    children: []
+                };
+            } else if (entryData.group && folders[entryData.group]) {
+                folders[entryData.group].children.push(entry);
+            } else {
+                rootItems.push(entry);
+            }
+        });
+
+        // Add folders to root items
+        Object.values(folders).forEach(folder => rootItems.push(folder));
+
+        return rootItems;
+    }
+
+    function isFolder(entryData) {
+        return entryData.comment && entryData.comment.startsWith('FOLDER:');
+    }
+
+    function renderFolderStructure(container, items) {
+        items.forEach(item => {
+            if (item.element) {
+                // It's a folder
+                const folderElement = createFolderElement(item);
+                container.appendChild(folderElement);
+
+                // Add children if folder is expanded
+                const isExpanded = !folderStates[item.data.uid] || folderStates[item.data.uid] === 'expanded';
+                if (isExpanded) {
+                    const childContainer = document.createElement('div');
+                    childContainer.className = 'folder-children';
+                    childContainer.style.marginLeft = '20px';
+
+                    item.children.forEach(child => {
+                        childContainer.appendChild(child);
+                    });
+
+                    container.appendChild(childContainer);
+                }
+            } else {
+                // Regular entry
+                container.appendChild(item);
+            }
+        });
+    }
+
+    function createFolderElement(folderData) {
+        const folderElement = document.createElement('div');
+        folderElement.className = 'world_entry lorebook-folder';
+        folderElement.setAttribute('data-uid', folderData.data.uid);
+
+        const folderName = folderData.data.comment.replace('FOLDER:', '');
+        const isExpanded = !folderStates[folderData.data.uid] || folderStates[folderData.data.uid] === 'expanded';
+
+        folderElement.innerHTML = `
+            <div class="folder-header">
+                <i class="fa-solid ${isExpanded ? 'fa-folder-open' : 'fa-folder'}"></i>
+                <span class="folder-toggle">${isExpanded ? '▼' : '▶'}</span>
+                <span class="folder-name">${folderName}</span>
+                <span class="folder-count">(${folderData.children.length})</span>
+            </div>
+        `;
+
+        folderElement.querySelector('.folder-header').addEventListener('click', () => {
+            folderStates[folderData.data.uid] = folderStates[folderData.data.uid] === 'collapsed' ? 'expanded' : 'collapsed';
+            transformLorebook();
+        });
+
+        return folderElement;
+    }
+
+    // Make toggle function global for onclick handlers
+    window.toggleFolder = function(folderId) {
+        folderStates[folderId] = folderStates[folderId] === 'collapsed' ? 'expanded' : 'collapsed';
+        transformLorebook();
     };
 
-    // Add to worldinfo (this hooks into ST's existing system)
-    window.world_info_data.entries.push(newEntry);
-    saveWorldInfo();
-    transformLorebook();
-}
+    // Start the extension
+    waitForST();
 
-function transformLorebook() {
-    const entriesContainer = document.querySelector('.worldInfoEntries');
-    if (!entriesContainer) return;
-
-    const entries = Array.from(entriesContainer.children);
-    const folderStructure = buildFolderHierarchy(entries);
-
-    // Rebuild the UI with folder structure
-    entriesContainer.innerHTML = '';
-    renderFolderStructure(entriesContainer, folderStructure);
-}
-
-function buildFolderHierarchy(entries) {
-    const folders = {};
-    const rootItems = [];
-
-    entries.forEach(entry => {
-        const entryData = getEntryData(entry);
-
-        if (isFolder(entryData)) {
-            folders[entryData.uid] = {
-                element: entry,
-                data: entryData,
-                children: []
-            };
-        } else if (entryData.group && folders[entryData.group]) {
-            folders[entryData.group].children.push(entry);
-        } else {
-            rootItems.push(entry);
-        }
-    });
-
-    // Add folders to root items
-    Object.values(folders).forEach(folder => rootItems.push(folder));
-
-    return rootItems;
-}
-
-function isFolder(entryData) {
-    return entryData.comment && entryData.comment.startsWith('FOLDER:');
-}
-
-function renderFolderStructure(container, items) {
-    items.forEach(item => {
-        if (item.element) {
-            // It's a folder
-            const folderElement = createFolderElement(item);
-            container.appendChild(folderElement);
-
-            // Add children if folder is expanded
-            if (!folderStates[item.data.uid] || folderStates[item.data.uid] === 'expanded') {
-                const childContainer = document.createElement('div');
-                childContainer.className = 'folder-children';
-                childContainer.style.marginLeft = '20px';
-
-                item.children.forEach(child => {
-                    childContainer.appendChild(child);
-                });
-
-                container.appendChild(childContainer);
-            }
-        } else {
-            // Regular entry
-            container.appendChild(item);
-        }
-    });
-}
-
-function createFolderElement(folderData) {
-    const folderElement = folderData.element.cloneNode(true);
-    folderElement.classList.add('lorebook-folder');
-
-    const folderName = folderData.data.comment.replace('FOLDER:', '');
-    const isExpanded = !folderStates[folderData.data.uid] || folderStates[folderData.data.uid] === 'expanded';
-
-    // Replace content with folder UI
-    folderElement.innerHTML = `
-        <div class="folder-header" onclick="toggleFolder(${folderData.data.uid})">
-            <i class="fa-solid ${isExpanded ? 'fa-folder-open' : 'fa-folder'}"></i>
-            <span class="folder-toggle">${isExpanded ? '▼' : '▶'}</span>
-            <span class="folder-name">${folderName}</span>
-            <span class="folder-count">(${folderData.children.length})</span>
-        </div>
-    `;
-
-    return folderElement;
-}
-
-function toggleFolder(folderId) {
-    folderStates[folderId] = folderStates[folderId] === 'collapsed' ? 'expanded' : 'collapsed';
-    transformLorebook();
-}
+})();
