@@ -38,19 +38,30 @@
     }
 
     function initializeFolders() {
-        // Look for the New Entry button to place our folder button after it
-        const newEntryBtn = document.querySelector('#world_info_button_add');
-        if (newEntryBtn && !document.querySelector('#create-folder-btn')) {
-            const createFolderBtn = document.createElement('div');
-            createFolderBtn.id = 'create-folder-btn';
-            createFolderBtn.className = 'menu_button';
-            createFolderBtn.innerHTML = '<i class="fa-solid fa-folder-plus"></i> Create Folder';
-            createFolderBtn.addEventListener('click', createFolder);
+        // Alternative: look for the buttons container and find the right spot
+        const buttonsContainer = document.querySelector('#world_info .world_buttons, #world_info_div .world_buttons');
+        if (buttonsContainer && !document.querySelector('#create-folder-btn')) {
+            const buttons = buttonsContainer.querySelectorAll('.menu_button');
+            let insertAfter = null;
     
-            // Insert after the New Entry button
-            newEntryBtn.parentNode.insertBefore(createFolderBtn, newEntryBtn.nextSibling);
+            // Find the "New Entry" button by looking for text content
+            buttons.forEach(btn => {
+                if (btn.textContent.includes('New Entry') || btn.textContent.includes('Add')) {
+                    insertAfter = btn;
+                }
+            });
+    
+            if (insertAfter) {
+                const createFolderBtn = document.createElement('div');
+                createFolderBtn.id = 'create-folder-btn';
+                createFolderBtn.className = 'menu_button';
+                createFolderBtn.innerHTML = '<i class="fa-solid fa-folder-plus"></i> Create Folder';
+                createFolderBtn.addEventListener('click', createFolder);
+    
+                insertAfter.parentNode.insertBefore(createFolderBtn, insertAfter.nextSibling);
+            }
         }
-
+    
         setTimeout(transformLorebook, 100);
     }
 
