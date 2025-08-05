@@ -2,7 +2,7 @@
 
 /* New Folder Button */
 #wif_new_folder_btn {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 5px;
     padding: 8px 12px;
@@ -13,7 +13,7 @@
     cursor: pointer;
     transition: all 0.2s ease;
     font-size: 13px;
-    margin-left: 10px;
+    z-index: 100;
 }
 
 #wif_new_folder_btn:hover {

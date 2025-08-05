@@ -97,7 +97,10 @@
      */
     function addFolderUI() {
         const newEntryButton = $('#world_info_new_entry');
+        console.log('World Info Folders: Checking for #world_info_new_entry. Found elements:', newEntryButton.length);
+
         if (newEntryButton.length && !$('#wif_new_folder_btn').length) {
+            console.log('World Info Folders: Adding "New Folder" button.');
             const newFolderButton = $(`
                 <div id="wif_new_folder_btn" class="menu_button" title="New Folder">
                     <i class="fa-solid fa-folder-plus"></i>
@@ -107,6 +110,8 @@
 
             newFolderButton.on('click', createNewFolder);
             newEntryButton.after(newFolderButton);
+        } else {
+            console.log('World Info Folders: "New Folder" button not added. Either #world_info_new_entry not found or button already exists.');
         }
     }
 
