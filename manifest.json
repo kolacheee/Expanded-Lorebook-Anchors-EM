@@ -1,12 +1,11 @@
 {
     "display_name": "World Info Folders",
-    "loading_order": 10,
+    "loading_order": 15,
     "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
-    "author": "SillyTavern Community",
+    "author": "World Info Folders Extension",
     "version": "1.0.0",
-    "homePage": "https://github.com/SillyTavern/SillyTavern",
-    "description": "Adds folder organization functionality to World Info entries with drag and drop support"
+    "homePage": "https://github.com/SillyTavern/SillyTavern"
 }
