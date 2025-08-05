@@ -38,15 +38,17 @@
     }
 
     function initializeFolders() {
-        // Add "Create Folder" button to lorebook UI
-        const buttonsContainer = document.querySelector('#world_info .world_buttons');
-        if (buttonsContainer && !document.querySelector('#create-folder-btn')) {
+        // Look for the New Entry button to place our folder button after it
+        const newEntryBtn = document.querySelector('#world_info_button_add');
+        if (newEntryBtn && !document.querySelector('#create-folder-btn')) {
             const createFolderBtn = document.createElement('div');
             createFolderBtn.id = 'create-folder-btn';
             createFolderBtn.className = 'menu_button';
             createFolderBtn.innerHTML = '<i class="fa-solid fa-folder-plus"></i> Create Folder';
             createFolderBtn.addEventListener('click', createFolder);
-            buttonsContainer.appendChild(createFolderBtn);
+    
+            // Insert after the New Entry button
+            newEntryBtn.parentNode.insertBefore(createFolderBtn, newEntryBtn.nextSibling);
         }
 
         setTimeout(transformLorebook, 100);
