@@ -1,0 +1,8 @@
+{
+    "name": "Lorebook Folders",
+    "version": "1.0.0",
+    "author": "Roo",
+    "description": "Adds collapsible folders to the lorebook for better organization.",
+    "script": "index.js",
+    "style": "style.css"
+}

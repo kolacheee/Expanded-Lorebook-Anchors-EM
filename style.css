@@ -1,0 +1,16 @@
+.lorebook-entry.is-folder {
+    background-color: var(--secondary-color);
+    border-left: 3px solid var(--primary-color);
+}
+
+.lorebook-entry .entry-content {
+    display: block;
+}
+
+.lorebook-entry.collapsed .entry-content {
+    display: none;
+}
+
+.lorebook-entry .drag-handle {
+    cursor: grab;
+}
