@@ -38,27 +38,31 @@
     }
 
     function initializeFolders() {
-        // Alternative: look for the buttons container and find the right spot
-        const buttonsContainer = document.querySelector('#world_info .world_buttons, #world_info_div .world_buttons');
-        if (buttonsContainer && !document.querySelector('#create-folder-btn')) {
-            const buttons = buttonsContainer.querySelectorAll('.menu_button');
-            let insertAfter = null;
+        // Target the correct buttons container in World Info
+        const worldInfoContainer = document.querySelector('#world_info');
+        if (!worldInfoContainer) return;
     
-            // Find the "New Entry" button by looking for text content
-            buttons.forEach(btn => {
-                if (btn.textContent.includes('New Entry') || btn.textContent.includes('Add')) {
-                    insertAfter = btn;
-                }
-            });
+        // Look for the specific button container with New Entry and Fill buttons
+        const buttonRow = worldInfoContainer.querySelector('.world_buttons_row') ||
+                         worldInfoContainer.querySelector('.flex-container') ||
+                         worldInfoContainer.querySelector('[class*="button"]').parentElement;
     
-            if (insertAfter) {
-                const createFolderBtn = document.createElement('div');
-                createFolderBtn.id = 'create-folder-btn';
-                createFolderBtn.className = 'menu_button';
-                createFolderBtn.innerHTML = '<i class="fa-solid fa-folder-plus"></i> Create Folder';
-                createFolderBtn.addEventListener('click', createFolder);
+        if (buttonRow && !document.querySelector('#create-folder-btn')) {
+            const createFolderBtn = document.createElement('div');
+            createFolderBtn.id = 'create-folder-btn';
+            createFolderBtn.className = 'menu_button';
+            createFolderBtn.innerHTML = '<i class="fa-solid fa-folder-plus"></i> Create Folder';
+            createFolderBtn.addEventListener('click', createFolder);
     
-                insertAfter.parentNode.insertBefore(createFolderBtn, insertAfter.nextSibling);
+            // Find the "Fill empty" button and insert before it
+            const fillButton = buttonRow.querySelector('[id*="fill"]') ||
+                              buttonRow.querySelector('div:last-child');
+    
+            if (fillButton) {
+                buttonRow.insertBefore(createFolderBtn, fillButton);
+            } else {
+                // Fallback: just append to the button container
+                buttonRow.appendChild(createFolderBtn);
             }
         }
     
