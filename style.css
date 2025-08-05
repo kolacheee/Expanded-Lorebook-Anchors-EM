@@ -1,0 +1,27 @@
+.wif-folder-entry {
+    border-left: 3px solid #4a4a4a;
+    padding-left: 10px;
+    margin-left: 5px;
+}
+
+.wif-folder-header {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.wif-folder-toggle {
+    margin-right: 5px;
+}
+
+.wif-folder-icon {
+    margin-right: 5px;
+}
+
+.wif-folder-name {
+    font-weight: bold;
+}
+
+.wif-folder-content {
+    padding-left: 20px;
+}
